@@ -8,6 +8,7 @@ import json
 import time
 from transformers import set_seed
 import sys
+import random as rd
 
 class Template(BaseModel):
     incident_type: str
@@ -25,7 +26,9 @@ def generate_prompt(doc,tokenizer, k=2):
     with open("multimuc/data/multimuc_v1.0/en/train_preprocess.jsonl") as f:
         count = 0
         prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: arson, attack, bombing, kidnapping, robbery, and forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (A inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act). To better undestand the task you will have some few-shot information'}]
-        for line in f:
+        all_train = f.readlines()
+        rd.shuffle(all_train)
+        for line in all_train:
             template_str = line.split(', "templates": ')[1][:-2]
             inputs = json.loads(line)
             prompt.append({"role":"user","content":inputs["doctext"]})
@@ -42,9 +45,11 @@ def generate_prompt(doc,tokenizer, k=2):
 model_name = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-k = 45
+k = int(sys.argv[1])
 seed = 42
 set_seed(seed)
+rd.seed(seed)
+
 inputs = []
 docids = []
 pred_dict = {}
@@ -88,5 +93,5 @@ for idx, output in enumerate(result):
     print(output.outputs[0].text)
     pred_dict[docids[idx]]["pred_templates"] = json.loads(output.outputs[0].text)["templates"]
 
-with open("predictions/"+str(k)+"-shot_greedy.json", "w") as outfile:
+with open("predictions/"+str(k)+"-shot_greedyR.json", "w") as outfile:
     json.dump(pred_dict, outfile, indent=4)
