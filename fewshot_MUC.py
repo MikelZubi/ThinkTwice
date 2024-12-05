@@ -9,6 +9,10 @@ import time
 from transformers import set_seed
 import sys
 import random as rd
+import os
+from torch.distributed import destroy_process_group
+
+LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
 
 class Template(BaseModel):
     incident_type: str
@@ -22,20 +26,26 @@ class Template(BaseModel):
 class Base(BaseModel):
     templates: conset(item_type=Template, min_length=0, max_length=7)
 
-def generate_prompt(doc,tokenizer, k=2):
-    with open("multimuc/data/multimuc_v1.0/en/train_preprocess.jsonl") as f:
+def generate_prompt(doc,tokenizer, language_code,k=2, random=True):
+    language = LANGUAGE_MAP[language_code]
+    with open("multimuc/data/multimuc_v1.0/corrected/"+language_code+"/train_preprocess.jsonl") as f:
         count = 0
-        prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: arson, attack, bombing, kidnapping, robbery, and forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (A inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act). To better undestand the task you will have some few-shot information'}]
+        if k > 0:
+            prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+' as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: arson, attack, bombing, kidnapping, robbery, and forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (A inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act). To better undestand the task you will have some few-shot information'}]
+        else:
+            prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+' as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: arson, attack, bombing, kidnapping, robbery, and forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (A inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act).'}]
         all_train = f.readlines()
-        rd.shuffle(all_train)
-        for line in all_train:
-            template_str = line.split(', "templates": ')[1][:-2]
-            inputs = json.loads(line)
-            prompt.append({"role":"user","content":inputs["doctext"]})
-            prompt.append({"role":"assistant","content":template_str})
-            count += 1
-            if count >= k:
-                break
+        if random:
+            rd.shuffle(all_train)
+        if k > 0:
+            for line in all_train:
+                template_str = line.split(', "templates": ')[1][:-2]
+                inputs = json.loads(line)
+                prompt.append({"role":"user","content":inputs["doctext"]})
+                prompt.append({"role":"assistant","content":template_str})
+                count += 1
+                if count >= k:
+                    break
         prompt.append({"role":"user","content":doc})
         prompt_token_ids = tokenizer.apply_chat_template(prompt, add_generation_prompt=True)
         return prompt_token_ids
@@ -46,6 +56,11 @@ model_name = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 k = int(sys.argv[1])
+if sys.argv[2] == "R":
+    random = True
+else:
+    random = False
+language = str(sys.argv[3])
 seed = 42
 set_seed(seed)
 rd.seed(seed)
@@ -54,7 +69,7 @@ inputs = []
 docids = []
 pred_dict = {}
 
-with open("multimuc/data/multimuc_v1.0/en/test.jsonl") as f:
+with open("multimuc/data/multimuc_v1.0/corrected/"+language+"/dev.jsonl") as f:
     for line in f:
         data = json.loads(line)
         docid = str(
@@ -65,7 +80,7 @@ with open("multimuc/data/multimuc_v1.0/en/test.jsonl") as f:
         pred_dict[docid] = {}
         pred_dict[docid]["doctext"] = data["doctext"]
         pred_dict[docid]["gold_templates"] = data["templates"]
-        prompt = generate_prompt(data["doctext"],tokenizer,k)
+        prompt = generate_prompt(data["doctext"],tokenizer,language,k,random)
         inputs.append(prompt)
 denboa1 = time.time()
 llm = vllm.LLM(model=model_name, tensor_parallel_size=1, enforce_eager=True)
@@ -90,8 +105,20 @@ with open(output, "w") as f:
     for output in result:
         f.write(output.outputs[0].text + "\n")
 for idx, output in enumerate(result):
-    print(output.outputs[0].text)
-    pred_dict[docids[idx]]["pred_templates"] = json.loads(output.outputs[0].text)["templates"]
+    try:
+        pred_dict[docids[idx]]["pred_templates"] = json.loads(output.outputs[0].text)["templates"]
+    except json.decoder.JSONDecodeError:
+        pred_dict[docids[idx]]["pred_templates"] = []
 
-with open("predictions/"+str(k)+"-shot_greedyR.json", "w") as outfile:
+if random:
+    folder_path = "predictions/random-few/"+str(language)
+
+else:
+    folder_path = "predictions/first-few/"+str(language)
+
+if not os.path.exists(folder_path):
+    os.makedirs(folder_path)
+path = folder_path + "/"+str(k)+"-shot_greedy.json"
+with open(path, "w") as outfile:
     json.dump(pred_dict, outfile, indent=4)
+destroy_process_group()
