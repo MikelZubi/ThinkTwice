@@ -1,7 +1,5 @@
-"""Example of integrating `outlines` with `vllm`."""
-
 import vllm
-from pydantic import BaseModel, conset
+from MUC_Class import *
 from transformers import AutoTokenizer
 from outlines.integrations.vllm import JSONLogitsProcessor
 import json
@@ -14,33 +12,23 @@ from torch.distributed import destroy_process_group
 
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
 
-class Template(BaseModel):
-    incident_type: str
-    PerpInd: list[list[str]]
-    PerpOrg: list[list[str]]
-    Target: list[list[str]]
-    Victim: list[list[str]]
-    Weapon: list[list[str]]
-
-
-class Base(BaseModel):
-    templates: conset(item_type=Template, min_length=0, max_length=7)
 
 def generate_prompt(doc,tokenizer, language_code,k=2, random=True):
     language = LANGUAGE_MAP[language_code]
     with open("multimuc/data/multimuc_v1.0/corrected/"+language_code+"/train_preprocess.jsonl") as f:
         count = 0
         if k > 0:
-            prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+' as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: arson, attack, bombing, kidnapping, robbery, and forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (A inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act). To better undestand the task you will have some few-shot information'}]
+            prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+' as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: kidnapping, attack, bombing, robbery, arson, or forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (An inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act). To better undestand the task you will have some few-shot information'}]
         else:
-            prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+' as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: arson, attack, bombing, kidnapping, robbery, and forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (A inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act).'}]
+            prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+' as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: kidnapping, attack, bombing, robbery, arson, or forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (An inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act).'}]
         all_train = f.readlines()
         if random:
             rd.shuffle(all_train)
         if k > 0:
             for line in all_train:
-                template_str = line.split(', "templates": ')[1][:-2]
                 inputs = json.loads(line)
+                template_dict = {"templates":inputs["templates"]}
+                template_str = json.dumps(template_dict)
                 prompt.append({"role":"user","content":inputs["doctext"]})
                 prompt.append({"role":"assistant","content":template_str})
                 count += 1
@@ -95,7 +83,7 @@ result = llm.generate(
     sampling_params=vllm.SamplingParams(
         logits_processors=[logits_processor],
         temperature=0.0,
-        max_tokens=1000,
+        max_tokens=2000,
         stop_token_ids=terminators,
     ),
     use_tqdm=True

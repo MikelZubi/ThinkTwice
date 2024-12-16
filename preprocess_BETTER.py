@@ -10,16 +10,16 @@ def apply_template(entry):
     for template in templates:
         pre_template = eval(templates[template]["template-type"])
         att_dict = {}
-        for template_key in pre_template.__fields__.keys():
-            if template_key != "template_type":
-                att_dict[template_key] = None
+        #for template_key in pre_template.__fields__.keys():
+        #    if template_key != "template_type":
+        #        att_dict[template_key] = None
         for temp_key in templates[template]:
             pre_key = temp_key.replace("-", "_")
             data = templates[template][temp_key]
             if isinstance(data, list):
                 pre_data = []
                 for instances in data:
-                    pre_ins = {"irrealis": None, "time_attachments": None}
+                    pre_ins = {}
                     is_span_list = True #True if spans, False if events
                     for key_ins in instances:
                         if key_ins == "irrealis":
@@ -109,9 +109,13 @@ def apply_template(entry):
             else:
                 print("ERROR! Temp_key not found:", pre_key)
                 exit(-1)
+        for key in att_dict:
+            if key not in pre_template.model_fields.keys():
+                print("ERROR! Key not found in template:", key)
+                assert False
         pre_template = pre_template.model_validate(att_dict)
         pre_template_list.append(pre_template)
-    preprocess_template = Template.model_validate({"templates":pre_template_list})
+    preprocess_template = Template.model_validate({"templates":pre_template_list},strict=True)
     return preprocess_template
 
 
