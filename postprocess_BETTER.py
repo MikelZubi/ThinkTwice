@@ -3,15 +3,16 @@ from types import NoneType
 import sys
 import os
 from BETTER_Granular_Class import *
-from difflib import SequenceMatcher
+import BETTER_Granular_Class_simplified as simp_class
+import pylcs
+from simplified2normal import simplified2normal
 
-def detect_largest_coincidency(document,span_string):
-    seq_match = SequenceMatcher(None, span_string, document)
-    match = seq_match.find_longest_match(0, len(span_string), 0, len(document))
-    if match.size != 0:
-        return span_string[match.a: match.a + match.size]
-    return ""
-
+def detect_largest_coincidency(document, span_string):
+    res = pylcs.lcs_string_idx(span_string, document)
+    result = ''.join([document[i] for i in res if i != -1])
+    if result == "":
+        print("ERROR! No match found")
+    return result
 
 
 
@@ -33,7 +34,7 @@ def spans_ids(spans,prev_spans_ids,document,last_key="ss-0"):
                 del span["synclass"]
             elif span["synclass"] not in ['name', 'nominal', 'pronoun', 'event-anchor', 'template-anchor', 'time-mention', 'duration-mention']:
                 del span["synclass"]
-        #span["string"] = detect_largest_coincidency(document,span["string"])
+        span["string"] = detect_largest_coincidency(document,span["string"])
     for key in prev_spans_ids:
         saved_span = prev_spans_ids[key]["spans"]
         if spans["spans"] == saved_span:
@@ -43,7 +44,7 @@ def spans_ids(spans,prev_spans_ids,document,last_key="ss-0"):
     str_last_key = "ss-"+str(last_key_int)
     return str_last_key
 
-def create_all_ids(data,document):
+def create_all_ids(data,document,simplified=False):
     all_spans = {}
     all_events = {}
     new_templates = {}
@@ -51,6 +52,9 @@ def create_all_ids(data,document):
     last_span_key = "ss-0"
     last_event_key = "event-0"
     compare_ids = lambda x,y: int(x.split("-")[1]) > int(y.split("-")[1])
+
+    if simplified:
+        data = simplified2normal(data)
 
     for template in data:
         new_template = {}
@@ -122,20 +126,23 @@ def create_all_ids(data,document):
     result = {"events":all_events,"granular-templates":new_templates,"span-sets":all_spans}
     return result
 
-def postprocess(file_path):
+def postprocess(file_path, simplified=False):
     postprocess_dict = {}
     with open(file_path, 'r') as file:
         for line in file:
             data = json.loads(line)
-            template_data = Template.model_validate({"templates":data["templates"]}).model_dump()
-            postprocess_template = create_all_ids(template_data["templates"],data["doctext"])
+            if simplified:
+                template_data = simp_class.Template.model_validate({"templates":data["templates"]}).model_dump()
+            else:
+                template_data = Template.model_validate({"templates":data["templates"]}).model_dump()
+            postprocess_template = create_all_ids(template_data["templates"],data["doctext"],simplified)
             postprocess_dict[data["docid"]] = {"annotation-sets":{"basic-events":postprocess_template},"doc-id":data["docid"],"entry-id":data["docid"],"segment-text":data["doctext"]}
     header = {"corpus-id":"Phase 2 Granular English 16 Dec 2021, Provided Devtest Ref (Obfuscated)", "entries":postprocess_dict, "format-type":"bp-corpus", "format-version":"v10"}
     return header
 
-def write_postprocessed_data(input_file_path, output_file_path):
+def write_postprocessed_data(input_file_path, output_file_path, simplified=False):
     
-    postprocessed_data = postprocess(input_file_path)
+    postprocessed_data = postprocess(input_file_path, simplified)
     output_folder = os.path.dirname(output_file_path)
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)

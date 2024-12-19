@@ -108,5 +108,5 @@ if not os.path.exists(folder_path):
     os.makedirs(folder_path)
 path = folder_path + "/"+str(k)+"-shot_greedy.json"
 with open(path, "w") as outfile:
-    json.dump(pred_dict, outfile, indent=4)
+    json.dump(pred_dict, outfile, indent=4,ensure_ascii=False)
 destroy_process_group()
