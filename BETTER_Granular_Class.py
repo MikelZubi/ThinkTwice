@@ -16,12 +16,12 @@ class event(BaseModel):
 
 class event_set(BaseModel):
     event: event
-    irrealis: Optional[str] = None
+    irrealis:  Optional[Literal['counterfactual', 'hypothetical', 'future', 'unconfirmed', 'unspecified', 'non-occurrence']] = None
     time_attachments: Optional[list[spans]] = None
 
 class span_set(BaseModel):
     span: spans
-    irrealis: Optional[str] = None
+    irrealis: Optional[Literal['counterfactual', 'hypothetical', 'future', 'unconfirmed', 'unspecified', 'non-occurrence']] = None
 
 
 class Protestplate(BaseModel):

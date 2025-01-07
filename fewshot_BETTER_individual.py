@@ -68,9 +68,9 @@ for class_key in class_dict:
     logist_processor_list.append(logits_processor)
     print("Time taken: ", time.time()-denboa1)
 for random in [True,False]:
-    for k in range(0,60):
+    for k in range(0,61):
         pred_all = []
-        for class_key in class_dict:
+        for logits_processor, class_key in zip(logist_processor_list, class_dict):
             inputs = []
             with open("phase2/phase2.granular.eng.preprocess-dev.jsonl") as f:
                 for line in f:

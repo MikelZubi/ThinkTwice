@@ -62,7 +62,7 @@ print("Generating...")
 
 
 for random in [True,False]:
-    for k in range(0,60):
+    for k in range(0,61):
         inputs = []
         docids = []
         pred_all = []

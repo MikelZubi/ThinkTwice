@@ -10,9 +10,15 @@ from simplified2normal import simplified2normal
 def detect_largest_coincidency(document, span_string):
     res = pylcs.lcs_string_idx(span_string, document)
     result = ''.join([document[i] for i in res if i != -1])
+    start = 0
+    end = 0
     if result == "":
         print("ERROR! No match found")
-    return result
+    else:
+        lag_res = [i for i in res if i != -1]
+        start = lag_res[0]
+        end = lag_res[-1] + 1
+    return result, start, end
 
 
 
@@ -27,14 +33,17 @@ def event_ids(event,prev_event_ids,last_key="event-0"):
     str_last_key = "event-"+str(last_key_int)
     return str_last_key
 
-def spans_ids(spans,prev_spans_ids,document,last_key="ss-0"):
+def spans_ids(spans,prev_spans_ids,document,last_key="ss-0",is_anchor=False):
     for span in spans["spans"]:
         if "synclass" in span:
             if span["synclass"] == None:
-                del span["synclass"]
+                span["synclass"] = "pronoun"
             elif span["synclass"] not in ['name', 'nominal', 'pronoun', 'event-anchor', 'template-anchor', 'time-mention', 'duration-mention']:
-                del span["synclass"]
-        span["string"] = detect_largest_coincidency(document,span["string"])
+                span["synclass"] = "pronoun"
+        span["string"], span["start"], span["end"] = detect_largest_coincidency(document,span["string"])
+        if is_anchor:
+            span["synclass"] = "event-anchor"
+            span["anchor-string"] = True
     for key in prev_spans_ids:
         saved_span = prev_spans_ids[key]["spans"]
         if spans["spans"] == saved_span:
@@ -75,7 +84,11 @@ def create_all_ids(data,document,simplified=False):
                         elif key_dict == "event":
                             event = dict_list[key_dict]
                             event_dict = {"anchors":None,"agents":[],"patients":[],"event-type":event["event_type"],"ref-events":[]}
-                            new_key_span = spans_ids(event["anchors"],all_spans,document,last_span_key)
+                            if "SoA" in event_dict["event-type"]:
+                                event_dict["state-of-affairs"] = True
+                            else:
+                                event_dict["state-of-affairs"] = False
+                            new_key_span = spans_ids(event["anchors"],all_spans,document,last_span_key,is_anchor=True)
                             if compare_ids(new_key_span,last_span_key):
                                 last_span_key = new_key_span
                                 all_spans[new_key_span] = {"spans":event["anchors"]["spans"],"ssid":new_key_span}

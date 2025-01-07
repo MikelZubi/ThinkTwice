@@ -28,7 +28,7 @@ def generate_prompt(doc,tokenizer, language_code,k=2, random=True):
             for line in all_train:
                 inputs = json.loads(line)
                 template_dict = {"templates":inputs["templates"]}
-                template_str = json.dumps(template_dict)
+                template_str = json.dumps(template_dict, ensure_ascii=False)
                 prompt.append({"role":"user","content":inputs["doctext"]})
                 prompt.append({"role":"assistant","content":template_str})
                 count += 1
@@ -99,10 +99,10 @@ for idx, output in enumerate(result):
         pred_dict[docids[idx]]["pred_templates"] = []
 
 if random:
-    folder_path = "predictions/random-few/"+str(language)
+    folder_path = "predictions_MUC/random-few/"+str(language)
 
 else:
-    folder_path = "predictions/first-few/"+str(language)
+    folder_path = "predictions_MUC/first-few/"+str(language)
 
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)
