@@ -98,7 +98,7 @@ for tag in posibles_tags:
         #REE
         if sys.argv[1] == "REE":
             for k in ks:
-                pred_file = "predictions/"+ tag + language + "/" + str(k) + "-shot_greedy.json"
+                pred_file = "predictions_MUC/"+ tag + language + "/" + str(k) + "-shot_greedy.json"
                 ## get pred and gold extracts
                 preds = OrderedDict()
                 golds = OrderedDict()
@@ -155,10 +155,10 @@ for tag in posibles_tags:
                 results = eval_tf(preds, golds, docids)
                 all_results.append(results)
             
-            if not os.path.exists("results/"+ tag + language):
-                os.makedirs("results/"+ tag + language)
+            if not os.path.exists("results_MUC/"+ tag + language):
+                os.makedirs("results_MUC/"+ tag + language)
         
-            with open("results/"+ tag + language + "/CEAF-REE-greedy.jsonl", "w", encoding="utf-8") as f:
+            with open("results_MUC/"+ tag + language + "/CEAF-REE-greedy.jsonl", "w", encoding="utf-8") as f:
                 for i, result in enumerate(all_results):
                     info = {}
                     info["k"] = ks[i]
@@ -166,7 +166,7 @@ for tag in posibles_tags:
                     json.dump(info, f)
                     f.write("\n")
 
-            with open("results/"+ tag + language + "/CEAF-REE-greedy.csv", "w") as f:
+            with open("results_MUC/"+ tag + language + "/CEAF-REE-greedy.csv", "w") as f:
                 writer = csv.writer(f)
                 writer.writerow(["ks"]+[key for key in all_results[0]])
                 for i, result in enumerate(all_results):
@@ -176,7 +176,7 @@ for tag in posibles_tags:
 
         all_results = []
         for k in ks:
-            pred_file = "predictions/"+ tag + language + "/" + str(k) + "-shot_greedy.json"
+            pred_file = "predictions_MUC/"+ tag + language + "/" + str(k) + "-shot_greedy.json"
             if not os.path.exists(pred_file):
                 continue
             selected_ks.append(k)
@@ -186,9 +186,9 @@ for tag in posibles_tags:
             all_results.append(results)
         
 
-        if not os.path.exists("results/"+ tag + language + "/"):
-            os.makedirs("results/"+ tag + language + "/")
-        with open("results/"+ tag + language + "/CEAF-RME-greedy.jsonl", "w", encoding="utf-8") as f:
+        if not os.path.exists("results_MUC/"+ tag + language + "/"):
+            os.makedirs("results_MUC/"+ tag + language + "/")
+        with open("results_MUC/"+ tag + language + "/CEAF-RME-greedy.jsonl", "w", encoding="utf-8") as f:
             for i, result in enumerate(all_results):
                 info = {}
                 info["k"] = selected_ks[i]
@@ -196,7 +196,7 @@ for tag in posibles_tags:
                 json.dump(info, f)
                 f.write("\n")
 
-        with open("results/"+ tag + language + "/CEAF-RME-greedy.csv", "w") as f:
+        with open("results_MUC/"+ tag + language + "/CEAF-RME-greedy.csv", "w") as f:
             writer = csv.writer(f)
             writer.writerow(["ks"]+[key for key in all_results[0]])
             for i, result in enumerate(all_results):
