@@ -61,7 +61,9 @@ class Protestplate(BaseModel):
     wounded: Optional[list[span]] = Field(
         description='Description of any injured participants, or a count if that is all that is available, e.g., “a woman,” “40,” “several police officers”.',
         default=None)
-    template_anchor: span
+    template_anchor: span = Field(
+        description='The anchor of the template',
+        default=None)
 
 
 
@@ -100,7 +102,9 @@ class Corruplate(BaseModel):
     who: Optional[list[span]] = Field(
         description='The individual(s) being accused of corruption.',
         default=None) 
-    template_anchor: span
+    template_anchor: span = Field(
+        description='The anchor of the template',
+        default=None)
 
 
 class Terrorplate(BaseModel):
@@ -180,7 +184,10 @@ class Terrorplate(BaseModel):
     wounded: Optional[list[span]] = Field(
         description='Mentions of those people who were wounded.',
         default=None)
-    template_anchor: span
+    template_anchor: span = Field(
+        description='The anchor of the template',
+        default=None)
+
 
 
 class Epidemiplate(BaseModel):
@@ -263,7 +270,10 @@ class Epidemiplate(BaseModel):
     where: Optional[list[span]] = Field(
         description='Mentions of one or more instances of where the disease has occurred.',
         default=None)
-    template_anchor: span
+    template_anchor: span = Field(
+        description='The anchor of the template',
+        default=None)
+
 
 
 
@@ -335,7 +345,10 @@ class Disasterplate(BaseModel):
     human_displacement_events: Optional[list[event]] = Field(
         description='Any refugee movement events resulting from the disaster (including those related to detaining refugees).',
         default=None)
-    template_anchor: span
+    template_anchor: span = Field(
+        description='The anchor of the template',
+        default=None)
+
 
 
 
@@ -401,7 +414,10 @@ class Displacementplate(BaseModel):
     Assistance_needed: Optional[list[event]] = Field(
         description='Assistance request events provided to the displaced humans, typically Aid-Needs events. Note that the type field on these events may provide useful information.',
         default=None)
-    template_anchor: span
+    template_anchor: span = Field(
+        description='The anchor of the template',
+        default=None)
+
 
 
 class Template(BaseModel):

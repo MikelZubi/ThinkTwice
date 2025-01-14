@@ -88,6 +88,14 @@ all_results = []
 ks = list(range(0,61))
 posibles_tags = ["first-few/", "random-few/"]
 languages = ["en", "ar", "fa", "ko", "ru", "zh"]
+path = "predictions_MUC/"
+out = "results_MUC/"
+if sys.argv[2] == "simplified":
+    path = "predictions_MUC_simplified/"
+    out = "results_MUC_simplified/"
+elif sys.argv[2] == "simplified_post":
+    path = "predictions_MUC_simplified_post/"
+    out = "results_MUC_simplified_post/"
 
 for tag in posibles_tags:
     for language in tqdm(languages):
@@ -98,7 +106,7 @@ for tag in posibles_tags:
         #REE
         if sys.argv[1] == "REE":
             for k in ks:
-                pred_file = "predictions_MUC/"+ tag + language + "/" + str(k) + "-shot_greedy.json"
+                pred_file = path + tag + language + "/" + str(k) + "-shot_greedy.json"
                 ## get pred and gold extracts
                 preds = OrderedDict()
                 golds = OrderedDict()
@@ -155,10 +163,10 @@ for tag in posibles_tags:
                 results = eval_tf(preds, golds, docids)
                 all_results.append(results)
             
-            if not os.path.exists("results_MUC/"+ tag + language):
-                os.makedirs("results_MUC/"+ tag + language)
+            if not os.path.exists(out+ tag + language):
+                os.makedirs(out+ tag + language)
         
-            with open("results_MUC/"+ tag + language + "/CEAF-REE-greedy.jsonl", "w", encoding="utf-8") as f:
+            with open(out+ tag + language + "/CEAF-REE-greedy.jsonl", "w", encoding="utf-8") as f:
                 for i, result in enumerate(all_results):
                     info = {}
                     info["k"] = ks[i]
@@ -166,7 +174,7 @@ for tag in posibles_tags:
                     json.dump(info, f)
                     f.write("\n")
 
-            with open("results_MUC/"+ tag + language + "/CEAF-REE-greedy.csv", "w") as f:
+            with open(out+ tag + language + "/CEAF-REE-greedy.csv", "w") as f:
                 writer = csv.writer(f)
                 writer.writerow(["ks"]+[key for key in all_results[0]])
                 for i, result in enumerate(all_results):
@@ -176,19 +184,20 @@ for tag in posibles_tags:
 
         all_results = []
         for k in ks:
-            pred_file = "predictions_MUC/"+ tag + language + "/" + str(k) + "-shot_greedy.json"
+            pred_file = path+ tag + language + "/" + str(k) + "-shot_greedy.json"
             if not os.path.exists(pred_file):
                 continue
             selected_ks.append(k)
             ## get pred and gold extracts
+            print(pred_file)
             pre_results = score(pred_file, gold_file, DatasetKind.MUC, file_type=PredictionFileType.GTT)
             results = {"p": pre_results["iterx_muc_slot_p"], "r": pre_results["iterx_muc_slot_r"], "f1": pre_results["iterx_muc_slot_f1"]}
             all_results.append(results)
         
 
-        if not os.path.exists("results_MUC/"+ tag + language + "/"):
-            os.makedirs("results_MUC/"+ tag + language + "/")
-        with open("results_MUC/"+ tag + language + "/CEAF-RME-greedy.jsonl", "w", encoding="utf-8") as f:
+        if not os.path.exists(out+ tag + language + "/"):
+            os.makedirs(out+ tag + language + "/")
+        with open(out+ tag + language + "/CEAF-RME-greedy.jsonl", "w", encoding="utf-8") as f:
             for i, result in enumerate(all_results):
                 info = {}
                 info["k"] = selected_ks[i]
@@ -196,7 +205,7 @@ for tag in posibles_tags:
                 json.dump(info, f)
                 f.write("\n")
 
-        with open("results_MUC/"+ tag + language + "/CEAF-RME-greedy.csv", "w") as f:
+        with open(out+ tag + language + "/CEAF-RME-greedy.csv", "w") as f:
             writer = csv.writer(f)
             writer.writerow(["ks"]+[key for key in all_results[0]])
             for i, result in enumerate(all_results):
