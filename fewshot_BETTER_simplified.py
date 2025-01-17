@@ -1,7 +1,8 @@
 
-import vllm
+
 from transformers import AutoTokenizer
-from outlines.integrations.vllm import JSONLogitsProcessor
+from vllm import LLM, SamplingParams
+from vllm.sampling_params import GuidedDecodingParams
 import json
 import time
 from transformers import set_seed
@@ -52,12 +53,12 @@ seed = 42
 set_seed(seed)
 rd.seed(seed)
 denboa1 = time.time()
-llm = vllm.LLM(model=model_name, tensor_parallel_size=1, enforce_eager=True)
+llm = LLM(model=model_name, tensor_parallel_size=1, enforce_eager=True)
 print("Time taken: ", time.time()-denboa1)
 terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]  
-logits_processor = JSONLogitsProcessor(schema=Template, llm=llm, whitespace_pattern=r" ?")
+guided_decoding_params = GuidedDecodingParams(json=Template.model_json_schema())
 print("Generating...")
 
 
@@ -80,8 +81,8 @@ for random in [True,False]:
                 pred_all.append(pred_dict)
         result = llm.generate(
             prompt_token_ids=inputs,
-            sampling_params=vllm.SamplingParams(
-                logits_processors=[logits_processor],
+            sampling_params=SamplingParams(
+                guided_decoding=guided_decoding_params,
                 temperature=0.0,
                 max_tokens=4000,
                 stop_token_ids=terminators,

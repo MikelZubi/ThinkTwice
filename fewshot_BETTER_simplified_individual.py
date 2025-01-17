@@ -1,7 +1,7 @@
 
-import vllm
 from transformers import AutoTokenizer
-from outlines.integrations.vllm import JSONLogitsProcessor
+from vllm import LLM, SamplingParams
+from vllm.sampling_params import GuidedDecodingParams
 import json
 import time
 from transformers import set_seed
@@ -56,21 +56,21 @@ seed = 42
 set_seed(seed)
 rd.seed(seed)
 denboa1 = time.time()
-llm = vllm.LLM(model=model_name, tensor_parallel_size=1, enforce_eager=True)
+llm = LLM(model=model_name, tensor_parallel_size=1, enforce_eager=True)
 print("Time taken: ", time.time()-denboa1)
 terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]  
-logist_processor_list = []
+guided_decoding_params_list = []
 for class_key in class_dict:
     template_class = class_dict[class_key]
-    logits_processor = JSONLogitsProcessor(schema=template_class, llm=llm, whitespace_pattern=r" ?")
-    logist_processor_list.append(logits_processor)
+    guided_decoding_params = GuidedDecodingParams(json=template_class.model_json_schema())
+    guided_decoding_params_list.append(guided_decoding_params)
     print("Time taken: ", time.time()-denboa1)
 for random in [True,False]:
     for k in range(0,61):
         pred_all = []
-        for logits_processor, class_key in zip(logist_processor_list, class_dict):
+        for guided_decoding_params, class_key in zip(guided_decoding_params_list, class_dict):
             inputs = []
             with open("phase2/phase2.granular.eng.preprocess-dev-simplified.jsonl") as f:
                 for line in f:
@@ -86,8 +86,8 @@ for random in [True,False]:
                     inputs.append(prompt)
             result = llm.generate(
                 prompt_token_ids=inputs,
-                sampling_params=vllm.SamplingParams(
-                    logits_processors=[logits_processor],
+                sampling_params=SamplingParams(
+                    guided_decoding=guided_decoding_params,
                     temperature=0.0,
                     max_tokens=4000,
                     stop_token_ids=terminators,

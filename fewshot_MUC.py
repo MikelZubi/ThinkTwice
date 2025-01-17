@@ -1,14 +1,15 @@
-import vllm
-from MUC_Class import *
 from transformers import AutoTokenizer
-from outlines.integrations.vllm import JSONLogitsProcessor
+from vllm import LLM, SamplingParams
+from vllm.sampling_params import GuidedDecodingParams
 import json
 import time
 from transformers import set_seed
-import sys
 import random as rd
 import os
 from torch.distributed import destroy_process_group
+import sys
+from MUC_Class import *
+
 
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
 
@@ -71,17 +72,17 @@ with open("multimuc/data/multimuc_v1.0/corrected/"+language+"/dev.jsonl") as f:
         prompt = generate_prompt(data["doctext"],tokenizer,language,k,random)
         inputs.append(prompt)
 denboa1 = time.time()
-llm = vllm.LLM(model=model_name, tensor_parallel_size=1, enforce_eager=True)
+llm = LLM(model=model_name, tensor_parallel_size=1, enforce_eager=True)
 print("Time taken: ", time.time()-denboa1)
 terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]  
-logits_processor = JSONLogitsProcessor(schema=Base, llm=llm, whitespace_pattern=r" ?")
+guided_decoding_params = GuidedDecodingParams(json=Template.model_json_schema())
 print("Generating...")
 result = llm.generate(
     prompt_token_ids=inputs,
-    sampling_params=vllm.SamplingParams(
-        logits_processors=[logits_processor],
+    sampling_params=SamplingParams(
+        guided_decoding=guided_decoding_params,
         temperature=0.0,
         max_tokens=2000,
         stop_token_ids=terminators,
