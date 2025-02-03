@@ -1,0 +1,7 @@
+source /scratch/mzubillaga/inguruneak/DocIE/bin/activate
+
+python scripts/BETTER_Scripts/results/better_scorer.py predictions/predictions_BETTER/
+python scripts/BETTER_Scripts/results/better_scorer.py predictions/predictions_BETTER_individuals/
+python scripts/BETTER_Scripts/results/better_scorer.py predictions/predictions_BETTER_simplified/
+python scripts/BETTER_Scripts/results/better_scorer.py predictions/predictions_BETTER_simplified_individuals/
+python scripts/BETTER_Scripts/results/better_scorer.py predictions/predictions_BETTER_simplified_guidelines/

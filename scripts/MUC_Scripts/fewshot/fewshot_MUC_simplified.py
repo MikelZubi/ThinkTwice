@@ -1,3 +1,6 @@
+import sys 
+sys.path.append("class_data")
+
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import GuidedDecodingParams
@@ -28,8 +31,7 @@ def generate_prompt(doc,tokenizer, language_code,k=2, random=True):
         if k > 0:
             for line in all_train:
                 inputs = json.loads(line)
-                template_dict = {"templates":inputs["templates"]}
-                template_str = json.dumps(template_dict, ensure_ascii=False)
+                template_str = json.dumps(inputs["templates"], ensure_ascii=False)
                 prompt.append({"role":"user","content":inputs["doctext"]})
                 prompt.append({"role":"assistant","content":template_str})
                 count += 1
@@ -77,7 +79,7 @@ print("Time taken: ", time.time()-denboa1)
 terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]  
-guided_decoding_params = GuidedDecodingParams(json=Template.model_json_schema())
+guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="lm-format-enforcer")
 print("Generating...")
 result = llm.generate(
     prompt_token_ids=inputs,
@@ -110,10 +112,10 @@ for idx, output in enumerate(result):
         pred_dict[docids[idx]]["pred_templates"] = []
 
 if random:
-    folder_path = "predictions_MUC_simplified/random-few/"+str(language)
+    folder_path = "predictions/predictions_MUC_simplified/random-few/"+str(language)
 
 else:
-    folder_path = "predictions_MUC_simplified/first-few/"+str(language)
+    folder_path = "predictions/predictions_MUC_simplified/first-few/"+str(language)
 
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)

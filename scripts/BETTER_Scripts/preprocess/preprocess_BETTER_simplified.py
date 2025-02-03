@@ -1,6 +1,13 @@
+import sys 
+
+sys.path.append("../class")
+
 import sys
 import json
 from BETTER_Granular_Class_simplified import *
+import os
+os.chdir("../../..")
+
 
 def most_relevant_string(span_list):
     preprocess_span_list = []

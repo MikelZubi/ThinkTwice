@@ -1,5 +1,5 @@
 from typing import Literal
-from pydantic import BaseModel, conset, Field
+from pydantic import BaseModel, Field
 
 class Template(BaseModel):
     incident_type: Literal['kidnapping','attack','bombing','robbery','arson','forced work stoppage'] = Field(description="The type of incident, the values can be: 'kidnapping','attack','bombing','robbery','arson', or 'forced work stoppage'")
@@ -9,6 +9,17 @@ class Template(BaseModel):
     Victim: list[str] = Field(description="The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack.")
     Weapon: list[str] = Field(description="A device used by the perpetrator(s) in carrying out the terrorist act.")
 
+class Entity(BaseModel):
+    incident_type: Literal['kidnapping','attack','bombing','robbery','arson','forced work stoppage']
+    entity_list: list[str]
+
+class Entities(BaseModel):
+    entities: list[str]
+
+
+class Incident_Types(BaseModel):
+    incident_types: list[Literal['kidnapping','attack','bombing','robbery','arson','forced work stoppage']]
+
 
 class Base(BaseModel):
-    templates: conset(item_type=Template, min_length=0, max_length=7)
+    templates: list[Template]

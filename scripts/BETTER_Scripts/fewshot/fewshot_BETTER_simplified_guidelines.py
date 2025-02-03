@@ -1,3 +1,6 @@
+import sys 
+sys.path.append("class_data")
+
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import GuidedDecodingParams
@@ -7,18 +10,24 @@ from transformers import set_seed
 import random as rd
 import os
 from torch.distributed import destroy_process_group
-from BETTER_Granular_Class import *
+from BETTER_Granular_Class_simplified import *
 
 
 
 
 def generate_prompt(doc,tokenizer,k=2, random=True):
-    with open("phase2/phase2.granular.eng.preprocess-train.jsonl") as f:
+    with open("phase2/phase2.granular.eng.preprocess-train-simplified.jsonl") as f:
         count = 0
+        system_prompt = 'You are an expert in information extraction, you need to extract the information from the document that is provided as a template in JSON format. The objective is to create a list of 6 types of templates, the guidelines for each template type are the following:'
+        for file in os.listdir("Docs"):
+            with open(os.path.join("Docs", file), 'r') as md_file:
+                system_prompt += '\n' + md_file.read()
+        
         if k > 0:
-            prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided as a template in JSON format. To better undestand the task you will have some few-shot information'}]
+            system_prompt += "\n \n" + 'To better understand the task you will have some few-shot information.'
+            prompt = [{'role': 'system', 'content': system_prompt}]
         else:
-            prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided as a template in JSON format.'}]
+            prompt = [{'role': 'system', 'content': system_prompt}]
         all_train = f.readlines()
         if random:
             rd.shuffle(all_train)
@@ -65,7 +74,7 @@ for random in [True,False]:
         inputs = []
         docids = []
         pred_all = []
-        with open("phase2/phase2.granular.eng.preprocess-dev.jsonl") as f:
+        with open("phase2/phase2.granular.eng.preprocess-dev-simplified.jsonl") as f:
             for line in f:
                 pred_dict = {}
                 data = json.loads(line)
@@ -98,10 +107,10 @@ for random in [True,False]:
                 pred_all[idx]["templates"] = []
 
         if random:
-            folder_path = "predictions_BETTER/random-few/"
+            folder_path = "predictions/predictions_BETTER_simplified_guidelines/random-few/"
 
         else:
-            folder_path = "predictions_BETTER/first-few/"
+            folder_path = "predictions/predictions_BETTER_simplified_guidelines/first-few/"
 
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)

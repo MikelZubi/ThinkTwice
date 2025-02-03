@@ -1,3 +1,5 @@
+import sys 
+sys.path.append("class_data")
 
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
@@ -8,13 +10,13 @@ from transformers import set_seed
 import random as rd
 import os
 from torch.distributed import destroy_process_group
-from BETTER_Granular_Class_simplified import *
+from BETTER_Granular_Class import *
 
 
 
 
 def generate_prompt(doc,tokenizer,template_class,k=2, random=True):
-    with open("phase2/phase2.granular.eng.preprocess-train-simplified.jsonl") as f:
+    with open("phase2/phase2.granular.eng.preprocess-train.jsonl") as f:
         count = 0
         if k > 0:
             prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided as a template in JSON format. To better undestand the task you will have some few-shot information'}]
@@ -72,7 +74,7 @@ for random in [True,False]:
         pred_all = []
         for guided_decoding_params, class_key in zip(guided_decoding_params_list, class_dict):
             inputs = []
-            with open("phase2/phase2.granular.eng.preprocess-dev-simplified.jsonl") as f:
+            with open("phase2/phase2.granular.eng.preprocess-dev.jsonl") as f:
                 for line in f:
                     pred_dict = {}
                     data = json.loads(line)
@@ -110,10 +112,10 @@ for random in [True,False]:
             if class_key == "Displacementplate":
 
                 if random:
-                    folder_path = "predictions_BETTER_simplified_individuals/random-few/"
+                    folder_path = "predictions/predictions_BETTER_individuals/random-few/"
 
                 else:
-                    folder_path = "predictions_BETTER_simplified_individuals/first-few/"
+                    folder_path = "predictions/predictions_BETTER_individuals/first-few/"
 
                 if not os.path.exists(folder_path):
                     os.makedirs(folder_path)

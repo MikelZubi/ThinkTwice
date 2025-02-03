@@ -1,4 +1,5 @@
-
+import sys 
+sys.path.append("class_data")
 
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
@@ -100,10 +101,10 @@ for random in [True,False]:
                 pred_all[idx]["templates"] = []
 
         if random:
-            folder_path = "predictions_BETTER_simplified/random-few/"
+            folder_path = "predictions/predictions_BETTER_simplified/random-few/"
 
         else:
-            folder_path = "predictions_BETTER_simplified/first-few/"
+            folder_path = "predictions/predictions_BETTER_simplified/first-few/"
 
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)

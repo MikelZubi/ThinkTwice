@@ -88,14 +88,14 @@ all_results = []
 ks = list(range(0,61))
 posibles_tags = ["first-few/", "random-few/"]
 languages = ["en", "ar", "fa", "ko", "ru", "zh"]
-path = "predictions_MUC/"
-out = "results_MUC/"
+path = "predictions/predictions_MUC/"
+out = "results/results_MUC/"
 if sys.argv[2] == "simplified":
-    path = "predictions_MUC_simplified/"
-    out = "results_MUC_simplified/"
+    path = "predictions/predictions_MUC_simplified/"
+    out = "results/results_MUC_simplified/"
 elif sys.argv[2] == "simplified_post":
-    path = "predictions_MUC_simplified_post/"
-    out = "results_MUC_simplified_post/"
+    path = "predictions/predictions_MUC_simplified_post/"
+    out = "results/results_MUC_simplified_post/"
 
 for tag in posibles_tags:
     for language in tqdm(languages):

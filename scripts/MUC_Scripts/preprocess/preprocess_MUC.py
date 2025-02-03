@@ -1,5 +1,6 @@
 import json
 import os
+from MUC_Class import *
 
 
 file_paths = []
@@ -21,6 +22,8 @@ for i in range(len(file_paths)):
         for line in file:
             data = json.loads(line)
             new_templates = []
+            incident_types = []
+            entity_list = []
             for template in data["templates"]:
                 if max < len(template):
                     max = len(template)
@@ -35,8 +38,14 @@ for i in range(len(file_paths)):
                                 all_correferences.append(name)
                             new_slot.append(all_correferences)
                         new_template[key] = new_slot
-                new_templates.append(new_template)
-            write_data = {"docid": data["docid"],"doctext": data["doctext"], "templates": new_templates}
+                        entity_list.append(all_correferences)
+                    else:
+                        incident_types.append(template["incident_type"])
+                new_templates.append(Template.model_validate(new_template))
+            pre_incident_types = Incident_Types.model_validate({"incident_types":incident_types})
+            pre_entity_list = Entities.model_validate({"entities":entity_list})
+            pre_template = Base.model_validate({"templates":new_templates})
+            write_data = {"docid": data["docid"],"doctext": data["doctext"], "templates": pre_template.model_dump(), "entities": pre_entity_list.model_dump(), "incident_types": pre_incident_types.model_dump()}
             with open(output_file_paths[i], 'a') as output_file:
                 output_file.write(json.dumps(write_data, ensure_ascii=False) + '\n')
     print(max)

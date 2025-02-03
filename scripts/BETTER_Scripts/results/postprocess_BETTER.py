@@ -2,9 +2,11 @@ import json
 from types import NoneType
 import sys
 import os
+sys.path.append("class_data")
 from BETTER_Granular_Class import *
 import BETTER_Granular_Class_simplified as simp_class
 import pylcs
+sys.path.append("scripts/BETTER_Scripts/preprocess")
 from simplified2normal import simplified2normal
 
 def detect_largest_coincidency(document, span_string):

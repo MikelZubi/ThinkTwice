@@ -31,7 +31,7 @@ for option in ["first-few","random-few"]:
             try:
                 num_shot = file.split('-')[0]
                 predict_file = os.path.join(current_dir, file)
-                output_path = current_dir.replace("predictions_BETTER", "postprocess_BETTER/postprocess_BETTER")
+                output_path = current_dir.replace("predictions/predictions_BETTER", "predictions/postprocess_BETTER/postprocess_BETTER")
                 output_file = os.path.join(output_path, file)[:-1] #remove l from jsonl
                 simplified = False
                 if "simplified" in predictions_dir:
