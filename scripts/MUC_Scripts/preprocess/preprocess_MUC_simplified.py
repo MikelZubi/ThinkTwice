@@ -1,18 +1,19 @@
 import json
 import os
-from MUC_Class_simplified import *
+from class_data.MUC_Class_simplified import *
 
 file_paths = []
 output_file_paths = []
 languages = ["en","ar", "fa", "ko", "ru", "zh"]
 map_field = {"PerpInd": "A person responsible for the incident. (PerpInd)", "PerpOrg": "An organization responsible for the incident. (PerpOrg)", "Target": "An inanimate object that was attacked. (Target)", "Victim": "The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack. (Victim)", "Weapon": "A device used by the perpetrator(s) in carrying out the terrorist act. (Weapon)"}
-for language in languages:
-    path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/train.jsonl"
-    path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/train_simplified_preprocess.jsonl"
-    if os.path.exists(path_write):
-        os.remove(path_write)
-    file_paths.append(path_read)
-    output_file_paths.append(path_write)
+for split in ["dev", "train"]:
+    for language in languages:
+        path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/"+split+".jsonl"
+        path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_simplified_preprocess.jsonl"
+        if os.path.exists(path_write):
+            os.remove(path_write)
+        file_paths.append(path_read)
+        output_file_paths.append(path_write)
 
 
 
@@ -43,8 +44,11 @@ for i in range(len(file_paths)):
                                 new_slot.append(max_length)
                         new_template[key] = new_slot
                     else:
+                        
+                        if template[key] == 'bombing / attack':
+                            template[key] = 'attack'
+                            new_template[key] = template[key]
                         incident_types.append(template["incident_type"])
-
                 new_templates.append(Template.model_validate(new_template))
                 new_templates_raw.append(new_template)
             continuation = True
