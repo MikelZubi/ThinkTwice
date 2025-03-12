@@ -69,10 +69,9 @@ conda deactivate
 (
     echo "Main"
     export CUDA_VISIBLE_DEVICES="0,1,2,3"  # All GPUs
-    export PYTHONPATH=/scratch/mzubillaga/DocIE
     source /scratch/mzubillaga/inguruneak/DocIE/bin/activate
     python scripts/MUC_Scripts/trainer/probatu_server.py
-    taskset -c $MAIN_CPUS accelerate launch --main_process_port 29516 scripts/MUC_Scripts/trainer/GRPO.py --model-path Model_JSON --distributed --batch-size 4 --gradient-accumulation-steps 4
+    taskset -c $MAIN_CPUS accelerate launch --num_processes 3 --main_process_port 29516 scripts/MUC_Scripts/trainer/GRPO_scratch.py --batch-size 2 --gradient-accumulation-steps 8
     #accelerate launch --main_process_port 29516 scripts/MUC_Scripts/trainer/GRPO.py --model-path Model_Proba --distributed
 
 )

@@ -3,6 +3,7 @@ from collections import defaultdict
 import json
 import copy as cp
 
+#TODO: Better-ea adapatatu
 
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
 

@@ -16,8 +16,10 @@ parser.add_argument('--reasoning', dest='reasoning', action='store_true',
 parser.add_argument('--natural-reasoning', dest='natural_reasoning', action='store_true',
                     help='Use natural reasoning, default to artificial.')
 parser.add_argument('--batch-size', dest="batch_size", type=int)
+parser.add_argument('--dataset-length', dest="dataset_length", type=int)
 parser.add_argument("--base-model", dest="base_model", type=str, default='meta-llama/Meta-Llama-3.1-8B-Instruct')
-parser.add_argument("--out-dir", dest="out_dir", type=str, default='Model_JSONV2')
+parser.add_argument("--out-dir", dest="out_dir", type=str, default='Model_Cold_Start')
+parser.add_argument
 parser.set_defaults(reasoning=False)
 parser.set_defaults(natural_reasoning=False)
 parser.set_defaults(batch_size=2)
@@ -104,8 +106,7 @@ def compute_metrics(eval_preds):
     results = score(pred_data=post_preds, ref_data=post_labels)
     return {'precision': results["iterx_muc_slot_p"], 'recall': results["iterx_muc_slot_r"], 'f1': results["iterx_muc_slot_f1"]}
 '''
-
-data_train = data['train']
+data_train = data['train'].shuffle().select(range(args.dataset_length))
 data_dev = data['dev']
 gradient_acumulation = 128//(args.batch_size * 4)
 # Define the trainer
@@ -115,9 +116,7 @@ config = SFTConfig(
     output_dir=out_dir,
     run_name=run_name,
     overwrite_output_dir=True,
-    save_strategy='steps',
-    save_steps=50,
-    num_train_epochs=100, 
+    num_train_epochs=20, 
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
     weight_decay=5e-5,
@@ -129,7 +128,6 @@ config = SFTConfig(
     max_seq_length=max_seq_length,
     deepspeed = deepspeed,
     packing=False,
-    logging_steps=50
 )
 train = SFTTrainer(
         model=model,
@@ -143,8 +141,8 @@ train = SFTTrainer(
     )
 # Train the model
 train.train()
-#model = train.model
-#model = model.merge_and_unload()
-#train.model = model
-#train.save_model(out_dir)
+model = train.model
+model = model.merge_and_unload()
+train.model = model
+train.save_model(out_dir)
 

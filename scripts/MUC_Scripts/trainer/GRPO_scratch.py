@@ -8,15 +8,17 @@ from accelerate import PartialState
 import argparse
 import requests
 
+import sys 
+sys.path.append("class_data")
+from MUC_Class_simplified import *
+
+
 
 
 
 #Argument parser
 parser = argparse.ArgumentParser(description='Arguments required to the SFT trainer')
-parser.add_argument('--reasoning', dest='reasoning', action='store_true',
-                    help='Use reasoning.')
-parser.add_argument('--natural-reasoning', dest='natural_reasoning', action='store_true',
-                    help='Use natural reasoning, default to artificial.')
+
 parser.add_argument('--model-path', dest="model_path", type=str)
 parser.add_argument('--batch-size', dest="batch_size", type=int)
 parser.add_argument('--gradient-accumulation-steps', dest="gradient_accumulation_steps", type=int)
@@ -24,26 +26,25 @@ parser.add_argument('--distributed', dest='distributed', action='store_true',
                     help='Use distributed training.')
 parser.add_argument('--r1', dest='r1', action='store_true',
                     help='Llama 8B R1 destill model')
-parser.set_defaults(r1=False)
-parser.set_defaults(distributed=False)
-parser.set_defaults(reasoning=False)
-parser.set_defaults(natural_reasoning=False)
-parser.set_defaults(model_path='meta-llama/Meta-Llama-3.1-8B-Instruct')
-parser.set_defaults(batch_size=2)
+parser.set_defaults(r1=True)
+parser.set_defaults(distributed=True)
+parser.set_defaults(model_path="deepseek-ai/DeepSeek-R1-Distill-Llama-8B")
+parser.set_defaults(batch_size=1)
 
 args = parser.parse_args()
 
 
 
 
-max_seq_length = 2200
+max_seq_length = 2150
 modelname = args.model_path
 print(modelname)
-tokenizer = AutoTokenizer.from_pretrained(modelname, padding_side='right') #Igual ezkerrean jarri beharko da?
-tokenizer.pad_token = "<|finetune_right_pad_id|>"
-tokenizer.pad_token_id = tokenizer.encode(tokenizer.pad_token, add_special_tokens=False)[0]
-tokenizer.model_max_length = max_seq_length
-data = create_dataset(tokenizer,'en',r1=args.r1,reasoning=args.reasoning,natural_reasoning=args.natural_reasoning, GRPO=True)
+tokenizer = AutoTokenizer.from_pretrained(modelname) #Igual ezkerrean jarri beharko da?
+#tokenizer = AutoTokenizer.from_pretrained(modelname, padding_side='right') #Igual ezkerrean jarri beharko da?
+#tokenizer.pad_token = "<|finetune_right_pad_id|>"
+#tokenizer.pad_token_id = tokenizer.encode(tokenizer.pad_token, add_special_tokens=False)[0]
+#tokenizer.model_max_length = max_seq_length
+data = create_dataset(tokenizer,'en',r1=args.r1,reasoning=True,natural_reasoning=True, GRPO=True)
 
 
 IDS = data['dev']['id']
@@ -58,44 +59,27 @@ else:
 model.config.pad_token_id = tokenizer.pad_token_id
 model.config.pad_token = tokenizer.pad_token
 
+
+REASONING = True
 SERVER = True
+deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero2_scratch.json"
 batch_size = args.batch_size
 gradient_accumulation_steps = args.gradient_accumulation_steps
-if args.reasoning and not args.natural_reasoning: 
-    max_seq_length = 5000
-    out_dir = "Model_GRPO_Reasoning"
-    run_name = 'GRPO_Reasoning'
-    if args.r1:
-        out_dir = out_dir + "_R1"
-        run_name = run_name + "_R1"
-    deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero2_reasoning.json"
-    REASONING = True
-elif args.reasoning and args.natural_reasoning:
-    max_seq_length = 5000
-    out_dir = "Model_GRPO_Natural_Reasoning"
-    run_name = 'GRPO_Natural_Reasoning'
-    if args.r1:
-        out_dir = out_dir + "_R1"
-        run_name = run_name + "_R1"
-    deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero2_reasoning.json"
-    REASONING = True
-else:
-    out_dir = "Model_GRPO_JSON"
-    run_name = 'GRPO_JSON'
-    if args.r1:
-        out_dir = out_dir + "_R1"
-        run_name = run_name + "_R1"
-    deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero2.json"
-    REASONING = False
+out_dir = "Model_GRPO_Scratch"
+run_name = 'GRPO_Scratch'
 peft_config = LoraConfig(
         task_type='CAUSAL_LM', inference_mode=False, target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj','gate_proj'], r=128, lora_alpha=128
     )
 
-
+terminators=[
+    tokenizer.eos_token_id,
+    tokenizer.convert_tokens_to_ids("<|eot_id|>"),
+    tokenizer.convert_tokens_to_ids("</think>")
+]
 
 
 def compute_server_rewards(completions, **kwargs):
-    response = requests.post('http://localhost:4416/reward',json={'completions': completions, 'ground_truths': kwargs['ground_truth'], "reasoning": REASONING})
+    response = requests.post('http://localhost:4416/reward',json={'completions': completions, 'ground_truths': kwargs['ground_truth'], "reasoning": False})
     reward = response.json()
     print(reward)
     return reward
@@ -112,7 +96,8 @@ config = GRPOConfig(
     overwrite_output_dir=True,
     save_strategy='steps',
     save_steps=0.05,
-    num_train_epochs=50, 
+    num_train_epochs=40, 
+    num_generations=6,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
     weight_decay=5e-5,
@@ -125,13 +110,22 @@ config = GRPOConfig(
     report_to='wandb', # 'wandb',
     do_train=True,
     max_prompt_length=max_seq_length,
+    max_completion_length=4000,
     deepspeed=deepspeed,
     evaluation_strategy='steps',
     eval_steps=0.05,
     logging_strategy='steps',
     logging_steps=0.05,
     load_best_model_at_end=True,
-    metric_for_best_model="loss"
+    metric_for_best_model="loss",
+    use_vllm=True,
+    vllm_device="auto",
+    vllm_gpu_memory_utilization=0.65,
+    vllm_max_model_len=max_seq_length,
+    #vllm_guided_decoding_regex="<think>\n([\s\S]*?)\n</think>",
+    vllm_guided_decoding_json=Base.model_json_schema(),
+    vllm_combine_guided_decoding=True,
+    vllm_stop_token_ids=terminators,
 )
 train = GRPOTrainer(
         model=model,

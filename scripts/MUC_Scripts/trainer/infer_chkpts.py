@@ -30,17 +30,22 @@ def ensure_format(pred):
     return True
 
 #With llama3 Instruct model
-def generate_prompt(doc,tokenizer, language_code):
+def generate_prompt(doc,tokenizer, language_code, reasoning=False):
     language = LANGUAGE_MAP[language_code]
-    prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+' as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: kidnapping, attack, bombing, robbery, arson, or forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (An inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act).'}]
+    if reasoning:
+        prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+'. For that, you need to follow two steps. The first one is the following: you need to identify what incident types are happening in the next document. The incident types can be the following ones: "kidnapping", "attack", "bombing", "robbery", "arson", and "forced work stoppage". The second and last step is to extract the entities of the document that take part on the incident types that you have extracted in the previous step. The entities can be of the following types: "A person responsible for the incident (PerpInd)", "An organization responsible for the incident (PerpOrg)", "An inanimate object that was attacked (Target)", "The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack (Victim)", and "A device used by the perpetrator(s) in carrying out the terrorist act (Weapon)". After that, you need to create a JSON that stores the information that you have extracted.'}]
+    else:
+        prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+' as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: kidnapping, attack, bombing, robbery, arson, or forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (An inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act).'}]
     prompt.append({"role":"user","content":doc})
     prompt_token_ids = tokenizer.apply_chat_template(prompt, add_generation_prompt=True)
     return prompt_token_ids
     
-def generate_text_train(doc, tokenizer,language_code):
+def generate_text_train(doc, tokenizer,language_code, reasoning=False):
     language = LANGUAGE_MAP[language_code]
-    prompt = '<SYSTEM> You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+' as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: kidnapping, attack, bombing, robbery, arson, or forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (An inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act).\n\n'
-    prompt += '<USER> '+ doc + "\n\n"
+    if reasoning:
+        prompt = '<USER> You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+'. For that, you need to follow two steps. The first one is the following: you need to identify what incident types are happening in the next document. The incident types can be the following ones: "kidnapping", "attack", "bombing", "robbery", "arson", and "forced work stoppage". The second and last step is to extract the entities of the document that take part on the incident types that you have extracted in the previous step. The entities can be of the following types: "A person responsible for the incident (PerpInd)", "An organization responsible for the incident (PerpOrg)", "An inanimate object that was attacked (Target)", "The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack (Victim)", and "A device used by the perpetrator(s) in carrying out the terrorist act (Weapon)". After that, you need to create a JSON that stores the information that you have extracted. The document is the next one:\n"' + doc +'" </USER>\n'
+    else:
+        prompt = '<USER> You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+' as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: kidnapping, attack, bombing, robbery, arson, or forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (An inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act). The document is the next one:\n"' + doc + '" </USER>\n'
     prompt += "<ASSISTANT> "
     prompt_token_ids = tokenizer.encode(prompt)
     return prompt_token_ids
@@ -95,9 +100,9 @@ with open("multimuc/data/multimuc_v1.0/corrected/"+language+"/dev.jsonl") as f:
         pred_dict[docid]["doctext"] = data["doctext"]
         pred_dict[docid]["gold_templates"] = data["templates"]
         if model_name == "meta-llama/Meta-Llama-3.1-8B-Instruct":
-            prompt = generate_prompt(data["doctext"],tokenizer,language)
+            prompt = generate_prompt(data["doctext"],tokenizer,language,reasoning=args.reasoning)
         else:
-            prompt = generate_text_train(data["doctext"],tokenizer,language)
+            prompt = generate_text_train(data["doctext"],tokenizer,language,reasoning=args.reasoning)
         inputs.append(prompt)
 
 llm = LLM(model=merge_path, tensor_parallel_size=1, enforce_eager=True, gpu_memory_utilization=0.8)
@@ -118,13 +123,15 @@ result = llm.generate(
 for idx, output in enumerate(result):
     try:
         post_templates = []
-        print(output.outputs[0].text)
         if args.reasoning:
             out_text = '{"templates":' + output.outputs[0].text.split('{"templates":')[-1]
         else:
             out_text = output.outputs[0].text
+        if model_name != "meta-llama/Meta-Llama-3.1-8B-Instruct":
+            out_text = out_text.split("</ASSISTANT>")[0]
         loaded_json = json.loads(out_text)
         if not ensure_format(out_text):
+            print(out_text)
             print("ERROR")
             pred_dict[docids[idx]]["pred_templates"] = []
             continue
@@ -139,6 +146,7 @@ for idx, output in enumerate(result):
         pred_dict[docids[idx]]["pred_templates"] = post_templates
 
     except (json.decoder.JSONDecodeError, KeyError) as e:
+        print(out_text)
         print("ERROR")
         pred_dict[docids[idx]]["pred_templates"] = []
 

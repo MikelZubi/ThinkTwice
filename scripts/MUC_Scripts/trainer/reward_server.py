@@ -11,10 +11,8 @@ from iterx.metrics.muc.ceaf_rme import ScoreFunction
 
 from typing import Annotated
 import typer
-from iterx.metrics.ceaf_rme_cmd_utils import DatasetKind, PredictionFileType, load_predictions, load_metric, \
-    load_references, print_prediction_comparison
+from iterx.metrics.ceaf_rme_cmd_utils import DatasetKind, PredictionFileType, load_predictions, load_metric
 from iterx.metrics.muc.ceaf_rme import ScoreFunction
-
 
 
 class FormatError(Exception):
@@ -34,6 +32,9 @@ def ensure_format(pred):
                     return False
                 elif not ALL_KEYS.issubset(template.keys()):
                     return False
+                for key in template.keys():
+                    if key != "incident_type" and type(template[key]) != list:
+                        return False
     except (json.JSONDecodeError, KeyError):
         return False
     return True
@@ -66,7 +67,6 @@ def postprocess(ids,preds,labels):
 def postprocess_GRPO(id,pred,label):
     post_preds = {}
     post_labels = []
-    pred_json = '{"templates":' + pred.split('{"templates":')[1]
     label_json = json.loads(label)
     pred_json = json.loads(pred)
     post_templates = []
@@ -156,23 +156,26 @@ def reward():
     for completion, ground_truth in zip(completions,ground_truths):
         if reasoning:
             completion = '{"templates":' + completion.split('{"templates":')[-1]
-        if ensure_format(completion):
-            if empty_template(completion,ground_truth):
-                rewards.append(10.0)
-                continue
+        try:
+            if ensure_format(completion):
+                if empty_template(completion,ground_truth):
+                    rewards.append(10.0)
+                    continue
 
-            post_preds, post_labels = postprocess_GRPO("TST1-MUC3-0001", completion, ground_truth)
-            score_result = score(pred_data=post_preds, ref_data=post_labels)
-            current_reward = score_result["iterx_muc_slot_f1"] * 10.0
-            if current_reward > 10:
-                print(f"Warning: Unusually high reward detected:\nReward: {current_reward}\nCompletion: {completion}\nGround truth: {ground_truth}\nScore results: {score_result}")
-                current_reward = 10.0
-            elif current_reward == 10.0:
-                current_reward = 15.0
-            elif current_reward == 0.0:
-                current_reward = -1.0
-            rewards.append(current_reward)
-        else:
+                post_preds, post_labels = postprocess_GRPO("TST1-MUC3-0001", completion, ground_truth)
+                score_result = score(pred_data=post_preds, ref_data=post_labels)
+                current_reward = score_result["iterx_muc_slot_f1"] * 10.0
+                if current_reward > 10:
+                    print(f"Warning: Unusually high reward detected:\nReward: {current_reward}\nCompletion: {completion}\nGround truth: {ground_truth}\nScore results: {score_result}")
+                    current_reward = 10.0
+                elif current_reward == 10.0:
+                    current_reward = 15.0
+                elif current_reward == 0.0:
+                    current_reward = -1.0
+                rewards.append(current_reward)
+            else:
+                rewards.append(-10.0)
+        except:
             rewards.append(-10.0)
     return rewards
 

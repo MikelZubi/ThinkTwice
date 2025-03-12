@@ -46,9 +46,9 @@ else:
         "predictions/DEV/MUC_simplified_SFT_ReasoningR1/en/results.csv",
     ]
     merge_paths = [
-        "Model_JSONR1",
-        "Model_Natural_ReasoningR1",
-        "Model_ReasoningR1",
+        "Model_JSON_R1",
+        "Model_Natural_Reasoning_R1",
+        "Model_Reasoning_R1",
     ]
     model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
     
@@ -60,18 +60,24 @@ for csv_file, merge_path in zip(csv_files, merge_paths):
     best_f1 = 0.0
     chkpt_path = None
     if os.path.exists(csv_file):
+        print(f"Reading {csv_file}")
         with open(csv_file, 'r') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 f1 = float(row['iterx_muc_slot_f1'])
+                print(f1)
                 if f1 > best_f1:
                     best_f1 = f1
                     chkpt_path = row['checkpoint']
-
+    print(csv_file)
     if not chkpt_path:
         raise ValueError("No checkpoint found in CSV files")
     print(merge_path)
-    peft_model = PeftModel.from_pretrained(model, merge_path + "V2/" + chkpt_path)
+    if args.r1:
+        lora_path = merge_path.replace("_R1","_LORA_R1") + "/" + chkpt_path
+    else:
+        lora_path = merge_path + "_LORA/" + chkpt_path
+    peft_model = PeftModel.from_pretrained(model, lora_path)
     merged_model = peft_model.merge_and_unload()
     merged_model.save_pretrained(merge_path,safe_serialization=True)
     tokenizer = AutoTokenizer.from_pretrained(model_name)

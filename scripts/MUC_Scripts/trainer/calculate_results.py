@@ -84,6 +84,22 @@ results3 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFile
 print("results Natural Reasoning: " + str(results3["iterx_muc_slot_f1"]))
 pred_path = "predictions/MUC_simplified_GRPO_JSON/en/greedy.json"
 results4 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFileType.GTT)
+#pred_path = "predictions/MUC_simplified_SFT_JSONR1/en/greedy.json"
+#results1 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFileType.GTT)
+#print("results JSON: " + str(results1["iterx_muc_slot_f1"]))
+#pred_path = "predictions/MUC_simplified_SFT_ReasoningR1/en/greedy.json"
+#results2 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFileType.GTT)
+#print("results Reasoning: " + str(results2["iterx_muc_slot_f1"]))
+#pred_path = "predictions/MUC_simplified_SFT_Natural_ReasoningR1/en/greedy.json"
+#results3 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFileType.GTT)
+#print("results Natural Reasoning: " + str(results3["iterx_muc_slot_f1"]))
+
+
+#GRPO
+
+
+pred_path = "predictions/MUC_simplified_GRPO_JSON/en/greedy.json"
+results4 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFileType.GTT)
 print("results GRPO JSON: " + str(results4["iterx_muc_slot_f1"]))
 pred_path = "predictions/MUC_simplified_GRPO_Natural_Reasoning/en/greedy.json"
 results4 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFileType.GTT)

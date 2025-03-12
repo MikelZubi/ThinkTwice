@@ -63,7 +63,7 @@ for i in range(len(file_paths)):
         prompt_token_ids=inputs,
         sampling_params=SamplingParams(
             temperature=0.6, #Recommended value
-            max_tokens=2000,
+            max_tokens=4000,
             stop_token_ids=terminators,
         ),
         use_tqdm=True
@@ -90,14 +90,14 @@ for i in range(len(file_paths)):
         prompt_token_ids=inputs,
         sampling_params=SamplingParams(
             temperature=0.6, #Recommended value
-            max_tokens=2000,
+            max_tokens=4000,
             stop_token_ids=terminators,
         ),
         use_tqdm=True
     )
 
     for idx, output in enumerate(result_2):
-        pre_dicts[idx]["corrected_reasoning"] = output.outputs[0].text.split("</think>")[0] + "</think>"
+        pre_dicts[idx]["corrected_reasoning"] = "<think>\n " + output.outputs[0].text.split("</think>")[0] + "</think>"
         print(pre_dicts[idx]["corrected_reasoning"])
 
 
