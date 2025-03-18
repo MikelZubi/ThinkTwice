@@ -155,7 +155,7 @@ def reward():
     rewards = []
     for completion, ground_truth in zip(completions,ground_truths):
         if reasoning:
-            completion = '{"templates":' + completion.split('{"templates":')[-1]
+            completion = '{"templates":' + completion.split('"templates":')[-1]
         try:
             if ensure_format(completion):
                 if empty_template(completion,ground_truth):

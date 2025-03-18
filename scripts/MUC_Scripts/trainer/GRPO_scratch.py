@@ -79,7 +79,7 @@ terminators=[
 
 
 def compute_server_rewards(completions, **kwargs):
-    response = requests.post('http://localhost:4416/reward',json={'completions': completions, 'ground_truths': kwargs['ground_truth'], "reasoning": False})
+    response = requests.post('http://localhost:4416/reward',json={'completions': completions, 'ground_truths': kwargs['ground_truth'], "reasoning": True})
     reward = response.json()
     print(reward)
     return reward
@@ -99,7 +99,7 @@ config = GRPOConfig(
     num_train_epochs=40, 
     num_generations=6,
     per_device_train_batch_size=batch_size,
-    per_device_eval_batch_size=batch_size,
+    #per_device_eval_batch_size=batch_size,
     weight_decay=5e-5,
     learning_rate=5e-6,
     num_iterations=3,
@@ -112,12 +112,12 @@ config = GRPOConfig(
     max_prompt_length=max_seq_length,
     max_completion_length=4000,
     deepspeed=deepspeed,
-    evaluation_strategy='steps',
-    eval_steps=0.05,
+    #evaluation_strategy='steps',
+    #eval_steps=0.05,
     logging_strategy='steps',
     logging_steps=0.05,
-    load_best_model_at_end=True,
-    metric_for_best_model="loss",
+    #load_best_model_at_end=True,
+    #metric_for_best_model="loss",
     use_vllm=True,
     vllm_device="auto",
     vllm_gpu_memory_utilization=0.65,
@@ -132,7 +132,7 @@ train = GRPOTrainer(
         args=config,
         processing_class=tokenizer,
         train_dataset=data_train,
-        eval_dataset=data_dev,
+        #eval_dataset=data_dev,
         peft_config=peft_config,
         reward_funcs=compute_server_rewards,
     )

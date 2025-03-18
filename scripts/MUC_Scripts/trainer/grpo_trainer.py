@@ -517,7 +517,7 @@ class GRPOTrainer(Trainer):
                 else:
                     guided_decoding = None
                 if args.vllm_guided_decoding_json is not None:
-                    guided_decoding_json = GuidedDecodingParams(backend="outlines", json=args.vllm_guided_decoding_json)
+                    guided_decoding_json = GuidedDecodingParams(backend="outlines", json=args.vllm_guided_decoding_json) #TODO: Backend-a aldatu?
 
                 
                 # Sampling parameters
@@ -531,7 +531,7 @@ class GRPOTrainer(Trainer):
                 )
                 if args.vllm_combine_guided_decoding:
                     self.sampling_params_2 = SamplingParams(
-                        temperature=args.temperature,
+                        temperature=0.0, # no temperature for the second sampling, we want it to be greedy because the exploration is done with the first sampling
                         max_tokens=self.max_completion_length,
                         guided_decoding=guided_decoding_json,
                     )
@@ -740,7 +740,7 @@ class GRPOTrainer(Trainer):
                 # num_generations outputs for each one. This is faster than generating outputs for each duplicate
                 # prompt individually.
                 ordered_set_of_prompts = list(dict.fromkeys(all_prompts_text))
-                with profiling_context(self, "vLLM.generate"):
+                with profiling_context(self, "vLLM.generate_Reasoning"):
                     all_outputs = self.llm.generate(
                         ordered_set_of_prompts, sampling_params=self.sampling_params, use_tqdm=False
                     )
@@ -751,17 +751,20 @@ class GRPOTrainer(Trainer):
                             completion_ids.append(output.token_ids)
                 else:
                     combined_text = []
-                    for outputs, text in zip(all_outputs, ordered_set_of_prompts):
+                    prev_completion_ids = []
+                    for prompt, outputs in zip(all_prompts_text, all_outputs):
                         for output in outputs.outputs:
-                            combined_text.append(text + output.text)
-                    with profiling_context(self, "vLLM.generate"):
-                        all_outputs = self.llm.generate(
+                            prev_completion_ids.append(list(output.token_ids))
+                            combined_text.append(prompt + output.text) #TODO: </think> gehittu?
+                        
+                    with profiling_context(self, "vLLM.generate_JSON"):
+                        all_outputs_2 = self.llm.generate(
                             combined_text, sampling_params=self.sampling_params_2, use_tqdm=False
                         )
                     completion_ids = []
-                    for outputs in all_outputs:
-                        for output in outputs.outputs:
-                            completion_ids.append(output.token_ids)
+                    for prev_completion_id, outputs2 in zip(prev_completion_ids,all_outputs_2):
+                        for output2 in outputs2.outputs:
+                            completion_ids.append(prev_completion_id + list(output2.token_ids))
                     
 
             else:
