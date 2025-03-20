@@ -38,7 +38,7 @@ map_field = {"PerpInd": "A person responsible for the incident. (PerpInd)", "Per
 split = args.split
 language = args.language
 path_read = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_simplified_preprocess.jsonl"
-path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"rejectionSampling.jsonl"
+path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_rejectionSampling.jsonl"
 if os.path.exists(path_write):
     os.remove(path_write)
 
@@ -79,7 +79,7 @@ result_1 = llm.generate(
 )
 new_inputs = []
 for idx, outputs in enumerate(result_1):
-    pre_dicts[idx]["pred_reasoning"] = [output.text for output in outputs]
+    pre_dicts[idx]["pred_reasoning"] = [output.text for output in outputs.outputs]
     pre_dicts[idx]["pred_json"] = [None]*n
     for output in outputs:
         new_inputs.append(inputs[idx] + output.ids + tokenizer.encode("</think>"))
@@ -103,7 +103,16 @@ result_2 = llm.generate(
 )
 for idx_n, outputs in enumerate(result_2):
     idx = idx_n // n
-    pre_dicts[idx]["pred_json"][idx_n % n] = outputs[0].text
+    post_templates = []
+    for template in json.loads(output.outputs[0].text)["templates"]:
+        post_processed = {}
+        for key in template.keys():
+            if key != "incident_type" and template[key] != []:
+                post_processed[key]=[[elem] for elem in template[key]]
+            else:
+                post_processed[key]=template[key]
+        post_templates.append(post_processed)
+    pre_dicts[idx]["pred_json"][idx_n % n] = post_templates
 
 
 
