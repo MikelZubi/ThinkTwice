@@ -37,8 +37,9 @@ def generate_promt(data,tokenizer,language_code):
 map_field = {"PerpInd": "A person responsible for the incident. (PerpInd)", "PerpOrg": "An organization responsible for the incident. (PerpOrg)", "Target": "An inanimate object that was attacked. (Target)", "Victim": "The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack. (Victim)", "Weapon": "A device used by the perpetrator(s) in carrying out the terrorist act. (Weapon)"}
 split = args.split
 language = args.language
+n = args.n
 path_read = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_simplified_preprocess.jsonl"
-path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_rejectionSampling.jsonl"
+path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_rejectionSampling_"+str(n)+".jsonl"
 if os.path.exists(path_write):
     os.remove(path_write)
 
@@ -47,7 +48,7 @@ model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 set_seed(42)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-llm = LLM(model=model_name, tensor_parallel_size=4, gpu_memory_utilization=0.95, max_model_len=40000)
+llm = LLM(model=model_name, tensor_parallel_size=4, gpu_memory_utilization=0.90, max_model_len=40000)
 inputs = []
 pre_dicts = []
 
@@ -67,7 +68,6 @@ terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>"),
     tokenizer.convert_tokens_to_ids("</think>")]  
-n = args.n
 result_1 = llm.generate(
     prompt_token_ids=inputs,
     sampling_params=SamplingParams(
