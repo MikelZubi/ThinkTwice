@@ -72,6 +72,14 @@ def score(
         print(f"{k}: {round(v, 4)}")
     return results
 
+#PROBA
+gold_path = "proba_gold.jsonl"
+pred_path = "proba_pred.json"
+results1 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFileType.GTT)
+pred_path = "multimuc/predictions/gtt/tgt_man/ar/test_preds.json"
+gold_path = "multimuc/data/multimuc_v1.0/corrected/ar/test.jsonl"
+results1 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFileType.GTT)
+print("results PROBA2: " + str(results1["iterx_muc_slot_f1"]))
 gold_path = "multimuc/data/multimuc_v1.0/corrected/en/test.jsonl"
 pred_path = "predictions/MUC_simplified_SFT_JSON/en/greedy.json"
 results1 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFileType.GTT)

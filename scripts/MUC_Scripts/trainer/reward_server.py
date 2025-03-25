@@ -163,6 +163,8 @@ def reward():
                     continue
 
                 post_preds, post_labels = postprocess_GRPO("TST1-MUC3-0001", completion, ground_truth)
+                print(post_preds)
+                print(post_labels)
                 score_result = score(pred_data=post_preds, ref_data=post_labels)
                 current_reward = score_result["iterx_muc_slot_f1"] * 10.0
                 if current_reward > 10:

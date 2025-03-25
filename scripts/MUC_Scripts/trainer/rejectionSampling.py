@@ -42,11 +42,12 @@ path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_r
 if os.path.exists(path_write):
     os.remove(path_write)
 
-model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
+#model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
+model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B"
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 set_seed(42)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-llm = LLM(model=model_name, tensor_parallel_size=2, gpu_memory_utilization=0.95, max_model_len=40000)
+llm = LLM(model=model_name, tensor_parallel_size=4, gpu_memory_utilization=0.95, max_model_len=40000)
 inputs = []
 pre_dicts = []
 
@@ -81,15 +82,15 @@ new_inputs = []
 for idx, outputs in enumerate(result_1):
     pre_dicts[idx]["pred_reasoning"] = [output.text for output in outputs.outputs]
     pre_dicts[idx]["pred_json"] = [None]*n
-    for output in outputs:
-        new_inputs.append(inputs[idx] + output.ids + tokenizer.encode("</think>"))
+    for output in outputs.outputs:
+        new_inputs.append(inputs[idx] + list(output.token_ids))
 
 
 terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]
 
-guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="lm-format-enforcer")
+guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="outlines")
 result_2 = llm.generate(
     prompt_token_ids=new_inputs,
     sampling_params=SamplingParams(
@@ -104,14 +105,17 @@ result_2 = llm.generate(
 for idx_n, outputs in enumerate(result_2):
     idx = idx_n // n
     post_templates = []
-    for template in json.loads(output.outputs[0].text)["templates"]:
-        post_processed = {}
-        for key in template.keys():
-            if key != "incident_type" and template[key] != []:
-                post_processed[key]=[[elem] for elem in template[key]]
-            else:
-                post_processed[key]=template[key]
-        post_templates.append(post_processed)
+    try:
+        for template in json.loads(outputs.outputs[0].text)["templates"]:
+            post_processed = {}
+            for key in template.keys():
+                if key != "incident_type" and template[key] != []:
+                    post_processed[key]=[[elem] for elem in template[key]]
+                else:
+                    post_processed[key]=template[key]
+            post_templates.append(post_processed)
+    except:
+        post_templates.append("ERROR") #Only if doesn't stop generating, and reach the maximun number of tokens
     pre_dicts[idx]["pred_json"][idx_n % n] = post_templates
 
 
