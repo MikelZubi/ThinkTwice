@@ -43,8 +43,8 @@ path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_r
 if os.path.exists(path_write):
     os.remove(path_write)
 
-#model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
-model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B"
+model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
+#model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B"
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 set_seed(42)
 tokenizer = AutoTokenizer.from_pretrained(model_name)

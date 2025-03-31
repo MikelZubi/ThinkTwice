@@ -2,7 +2,6 @@ from typing import OrderedDict, List, Union, Tuple, Optional, Callable, Dict
 import json
 import sys
 import numpy as np
-import csv
 sys.path.append('multimuc/iterx/src')
 
 from iterx.metrics.muc.ceaf_rme import ScoreFunction
@@ -97,57 +96,83 @@ with open(gold_path, "r") as file:
         labels.append(label)
 
 completions = []
-paths = {"Reasoning": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejection_sampling/dev_rejectionSampling_"+str(x)+".jsonl", "JSON": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejection_sampling/dev_rejectionSampling_JSON"+str(x)+".jsonl"}
-header = ["Type","n","F1","Precision","Recall","STD"]
-out_list = []
-ns = [1,2,4,8,16,32,64]
+path = "multimuc/data/multimuc_v1.0/corrected/en/rejection_sampling/dev_rejectionSampling.jsonl"#IDATZI
+best_f1s = []
+dis = 0
+all_data = {}
 stds = []
-for key in paths:
-    for n in ns:
-        path = paths[key](n)
-        best_f1s = []
-        dis = 0
-        best_templates = {}
-        with open(path, "r") as file:
-            for line, gold, id, document in zip(file,ground_truths,ids,documents):
-                data = json.loads(line)
-                f1 = 0.0
-                two_empty = False
-                gold_empty = False
-                best_template = []
-                current_f1s = []
-                print(len(data["pred_json"]))
-                for template in data["pred_json"]:
-                    if template != ["ERROR"]:
-                        completion, ground_truth = postprocess("TST1-MUC3-0001",template,gold)
-                        score_result = score(pred_data=completion, ref_data=ground_truth)
-                        current_f1 = score_result["iterx_muc_slot_f1"]
-                        if gold == []:
-                            gold_empty = True
-                        if gold == [] and template == [] and not two_empty:
-                            two_empty = True
-                            dis += 1
-                        if current_f1 > f1:
-                            best_template = template
-                            f1 = current_f1
-                        current_f1s.append(current_f1)
-                best_f1s.append(f1)
-                pred_id = str(
-                        int(id.split("-")[0][-1]) * 10000
-                        + int(id.split("-")[-1]))
-                std = np.std(current_f1s)
-                stds.append(std)
-                best_templates[pred_id] = {"pred_templates":best_template,"gold_templates":gold}
-            values = score(pred_data=best_templates, ref_data=labels)
-            precision = values["iterx_muc_slot_p"]
-            recall = values["iterx_muc_slot_r"]
-            f1 = values["iterx_muc_slot_f1"]
-            std = np.mean(stds)
-            out_list.append([key,n,f1,precision,recall,std])
+best_templates = {}
+bad_empty = None
+good_empty = None
+emptys = []
+with open(path, "r") as file:
+    for line, gold, id, document in zip(file,ground_truths,ids,documents):
+        data = json.loads(line)
+        f1 = 0.0
+        two_empty = False
+        gold_empty = False
+        pred_data = []
+        best_template = []
+        incorrect_templates = []
+        incorrect_templates_reasoning = []
+        for template,reasoning in zip(data["pred_json"],data["pred_reasoning"]):
+            if template != ["ERROR"]:
+                completion, ground_truth = postprocess("TST1-MUC3-0001",template,gold)
+                score_result = score(pred_data=completion, ref_data=ground_truth)
+                current_f1 = score_result["iterx_muc_slot_f1"]
+                if gold == []:
+                    gold_empty = True
+                if gold == [] and template == [] and not two_empty:
+                    two_empty = True
+                    correct_template = template
+                    correct_reasoning = reasoning
+                    dis += 1
+                elif gold == [] and template != []:
+                    incorrect_templates.append(template)
+                    incorrect_templates_reasoning.append(reasoning)
+                if current_f1 > f1:
+                    best_template = template
+                    f1 = current_f1
+                pred_data.append((current_f1,template,reasoning))
+        best_f1s.append(f1)
+        pred_id = str(
+                int(id.split("-")[0][-1]) * 10000
+                + int(id.split("-")[-1]))
+        best_templates[pred_id] = {"pred_templates":best_template,"gold_templates":gold}
+        pred_data.sort(key=lambda x: x[0])
+        reasoning = [x[2] for x in pred_data]
+        sorted_templates = [x[1] for x in pred_data]
+        current_f1s = [x[0] for x in pred_data]
+        mean = np.mean(current_f1s)
+        std = np.std(current_f1s)
+        if not gold_empty:
+            stds.append((id,std,mean,f1))
+        if gold_empty and len(incorrect_templates) > 0:
+            resumed_reasoning = incorrect_templates_reasoning[:2]
+            resumed_reasoning.append(correct_reasoning)
+            resumed_templates = incorrect_templates[:2]
+            resumed_templates.append(correct_template)
+            empty = {"document":document, "reasonings":resumed_reasoning, "gold_template":gold, "pred_templates":resumed_templates}
+            emptys.append(empty)
+            continue 
 
-out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejection_sampling/scores.csv"
-with open(out_path, 'w', newline='') as file:
-    writer = csv.writer(file)
-    header = ["Type","n","F1","Precision","Recall","STD"]
-    writer.writerow(header)
-    writer.writerows(out_list)
+        resumed_templates = [sorted_templates[0], sorted_templates[len(sorted_templates)//2], sorted_templates[-1]]
+        resumed_reasoning = [reasoning[0], reasoning[len(reasoning)//2], reasoning[-1]]
+        resumed_f1s = [current_f1s[0], current_f1s[len(current_f1s)//2], current_f1s[-1]]        
+        all_data[id] = {"document":document, "reasonings":resumed_reasoning, "gold_template":gold, "pred_templates":resumed_templates, "f1s":resumed_f1s, "mean":mean, "std":std}
+
+print(sum(best_f1s)/(len(best_f1s)-dis))
+print(score(pred_data=best_templates, ref_data=labels))
+stds.sort(key=lambda x: x[1],reverse=True)
+errorAnalysis = {}
+errorAnalysis["empty_0"] = emptys[0]
+errorAnalysis["empty_1"] = emptys[1]
+errorAnalysis["std_high_1"] = all_data[stds[0][0]]
+errorAnalysis["std_high_2"] = all_data[stds[1][0]]
+errorAnalysis["std_low_1"] = all_data[stds[-1][0]]
+errorAnalysis["std_low_2"] = all_data[stds[-2][0]]
+print(stds)
+with open ("errorAnalysis.json","w") as file:
+    json.dump(errorAnalysis, file, indent=4, ensure_ascii=False)
+
+

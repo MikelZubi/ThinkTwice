@@ -27,7 +27,8 @@ args = parser.parse_args()
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
 
 
-def generate_prompt(doc,tokenizer, language_code):
+def generate_prompt(data,tokenizer, language_code):
+    doc = data["doctext"]
     language = LANGUAGE_MAP[language_code]
     prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+' as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: kidnapping, attack, bombing, robbery, arson, or forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (An inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act).'}]
     prompt.append({"role":"user","content":doc})
@@ -44,7 +45,7 @@ if os.path.exists(path_write):
     os.remove(path_write)
 
 #model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
-model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/Llama-3.3-70B-Instruct"
+model_name = "meta-llama/Llama-3.3-70B-Instruct"
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 set_seed(42)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -81,9 +82,9 @@ result_1 = llm.generate(
 )
 new_inputs = []
 for idx, outputs in enumerate(result_1):
-    post_templates = []
+    pre_dicts[idx]["pred_json"] = []
     for output in outputs.outputs:
-        pre_dicts[idx]["pred_json"] = []
+        post_templates = []
         try:
             for template in json.loads(output.text)["templates"]:
                 post_processed = {}
