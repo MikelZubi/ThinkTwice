@@ -9,7 +9,9 @@ import argparse
 
 import sys 
 sys.path.append("class_data")
+sys.path.append("prompt_library")
 from MUC_Class_simplified import *
+from init import PROMPT_FN
 
 
 #Argument parser
@@ -17,9 +19,12 @@ parser = argparse.ArgumentParser(description='Arguments required to the rejectio
 parser.add_argument('--split', dest='split', type=str)
 parser.add_argument('--n', dest='n', type=int)
 parser.add_argument('--language', dest='language', type=str)
+parser.add_argument('--step-prompt', dest='step_prompt', action='store_true')
+
 parser.set_defaults(language="en")
 parser.set_defaults(split="train")
 parser.set_defaults(n=32)
+parser.set_defaults(step_prompt=False)
 args = parser.parse_args()
 
 
@@ -27,9 +32,14 @@ args = parser.parse_args()
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
 
 
-def generate_promt(data,tokenizer,language_code):
+def generate_promt(data,tokenizer,language_code,step_prompt=False):
     language = LANGUAGE_MAP[language_code]
-    prompt = [{'role': 'user', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+'. For that, you need to follow two steps. The first one is the following: you need to identify what incident types are happening in the next document. The incident types can be the following ones: "kidnapping", "attack", "bombing", "robbery", "arson", and "forced work stoppage". The second and last step is to extract the entities of the document that take part on the incident types that you have extracted in the previous step. The entities can be of the following types: "A person responsible for the incident (PerpInd)", "An organization responsible for the incident (PerpOrg)", "An inanimate object that was attacked (Target)", "The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack (Victim)", and "A device used by the perpetrator(s) in carrying out the terrorist act (Weapon)". The document is the next one: ' + data["doctext"]}]
+    if step_prompt:
+        user_prompt = PROMPT_FN["P_U_MUC_70BR1_STEPS_REASONING"].format(language=language, document=data["doctext"])
+    else:
+        user_prompt = PROMPT_FN["P_U_MUC_70BR1_REASONING"].format(language=language, document=data["doctext"])
+    print(user_prompt)
+    prompt = [{'role': 'user', 'content': user_prompt}]
     prompt_token_ids = tokenizer.apply_chat_template(prompt, add_generation_prompt=True) + tokenizer.encode("<think>\n")
     return prompt_token_ids
 
@@ -39,12 +49,16 @@ split = args.split
 language = args.language
 n = args.n
 path_read = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_simplified_preprocess.jsonl"
-path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_rejectionSampling_"+str(n)+".jsonl"
+step_prompt = args.step_prompt
+if step_prompt:
+    path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/rejectionSampling/"+split+"_StepReasoning_"+str(n)+".jsonl"
+else:
+    path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/rejectionSampling/"+split+"_Reasoning_"+str(n)+".jsonl"
 if os.path.exists(path_write):
     os.remove(path_write)
 
-model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
-#model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B"
+#model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
+model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B"
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 set_seed(42)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -60,7 +74,7 @@ with open(path_read, 'r') as file:
     for line in file:
         data = json.loads(line)
         pre_dict = data
-        inputs.append(generate_promt(pre_dict,tokenizer,language))
+        inputs.append(generate_promt(pre_dict,tokenizer,language,step_prompt))
         pre_dicts.append(pre_dict)
 
 
@@ -90,7 +104,7 @@ terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]
 
-guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="outlines")
+guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="lm-format-enforcer")
 result_2 = llm.generate(
     prompt_token_ids=new_inputs,
     sampling_params=SamplingParams(

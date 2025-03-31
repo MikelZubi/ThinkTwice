@@ -1,6 +1,8 @@
 import json
 import os
-from class_data.MUC_Class_simplified import *
+import sys
+sys.path.append("class_data")
+from MUC_Class_simplified import *
 
 file_paths = []
 output_file_paths = []
@@ -81,7 +83,7 @@ for i in range(len(file_paths)):
                             reasoning += "and '" + template_raw[key][-1] + "'. "
             pre_incident_types = Incident_Types.model_validate({"incident_types":incident_types})
             pre_template = Base.model_validate({"templates":new_templates})
-            write_data = {"docid": data["docid"],"doctext": data["doctext"], "templates": pre_template.model_dump(), "reasoning": reasoning, "incident_types": pre_incident_types.model_dump()}
+            write_data = {"docid": data["docid"],"doctext": " ".join(data["doctext"].split()), "templates": pre_template.model_dump(), "reasoning": reasoning, "incident_types": pre_incident_types.model_dump()}
             with open(output_file_paths[i], 'a') as output_file:
                 output_file.write(json.dumps(write_data, ensure_ascii=False) + '\n')
     print(max)

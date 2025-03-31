@@ -9,7 +9,10 @@ import argparse
 
 import sys 
 sys.path.append("class_data")
+sys.path.append("prompt_library")
 from MUC_Class_simplified import *
+from init import PROMPT_FN
+
 
 
 #Argument parser
@@ -30,7 +33,8 @@ LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", 
 def generate_prompt(data,tokenizer, language_code):
     doc = data["doctext"]
     language = LANGUAGE_MAP[language_code]
-    prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+' as a template in JSON format. For that, first, you need to indicate what is the "incident_type", which can be: kidnapping, attack, bombing, robbery, arson, or forced work stoppage. Then, you need to fill the next slots (or leave them empty): "PerpInd" (A person responsible for the incident.), "PerpOrg" (An organization responsible for the incident.), "Target" (An inanimate object that was attacked), "Victim" (The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack), and "Weapon" (A device used by the perpetrator/s in carrying out the terrorist act).'}]
+    prompt_system = PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language)
+    prompt = [{'role': 'system', 'content': prompt_system}]
     prompt.append({"role":"user","content":doc})
     prompt_token_ids = tokenizer.apply_chat_template(prompt, add_generation_prompt=True)
     return prompt_token_ids
@@ -44,8 +48,8 @@ path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_r
 if os.path.exists(path_write):
     os.remove(path_write)
 
-#model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
-model_name = "meta-llama/Llama-3.3-70B-Instruct"
+model_name = model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/Llama-3.3-70B-Instruct"
+#model_name = "meta-llama/Llama-3.3-70B-Instruct"
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 set_seed(42)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -68,7 +72,7 @@ with open(path_read, 'r') as file:
 terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]  
-guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="outlines")
+guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="lm-format-enforcer")
 result_1 = llm.generate(
     prompt_token_ids=inputs,
     sampling_params=SamplingParams(
