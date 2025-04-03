@@ -2,7 +2,6 @@ from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import GuidedDecodingParams
 import json
-from transformers import set_seed
 import os
 from torch.distributed import destroy_process_group
 import argparse
@@ -60,9 +59,8 @@ if os.path.exists(path_write):
 #model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
 model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B"
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
-set_seed(42)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-llm = LLM(model=model_name, tensor_parallel_size=4, gpu_memory_utilization=0.90, max_model_len=40000)
+llm = LLM(model=model_name, tensor_parallel_size=4, enforce_eager=True, gpu_memory_utilization=0.90, max_model_len=10000)
 inputs = []
 pre_dicts = []
 
@@ -87,6 +85,7 @@ result_1 = llm.generate(
     sampling_params=SamplingParams(
         temperature=0.7, #Recommended value
         max_tokens=4000,
+        seed=42,
         stop_token_ids=terminators,
         n=n
     ),
@@ -104,7 +103,7 @@ terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]
 
-guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="lm-format-enforcer")
+guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="outlines")
 result_2 = llm.generate(
     prompt_token_ids=new_inputs,
     sampling_params=SamplingParams(

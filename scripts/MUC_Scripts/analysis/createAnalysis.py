@@ -96,7 +96,7 @@ with open(gold_path, "r") as file:
         labels.append(label)
 
 completions = []
-path = "multimuc/data/multimuc_v1.0/corrected/en/rejection_sampling/dev_rejectionSampling.jsonl"#IDATZI
+path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_Reasoning_32.jsonl"#IDATZI
 best_f1s = []
 dis = 0
 all_data = {}
@@ -147,7 +147,7 @@ with open(path, "r") as file:
         std = np.std(current_f1s)
         if not gold_empty:
             stds.append((id,std,mean,f1))
-        if gold_empty and len(incorrect_templates) > 0:
+        if gold_empty and len(incorrect_templates) > 0 and two_empty:
             resumed_reasoning = incorrect_templates_reasoning[:2]
             resumed_reasoning.append(correct_reasoning)
             resumed_templates = incorrect_templates[:2]

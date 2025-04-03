@@ -34,8 +34,9 @@ def generate_prompt(data,tokenizer, language_code):
     doc = data["doctext"]
     language = LANGUAGE_MAP[language_code]
     prompt_system = PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language)
+    prompt_user = PROMPT_FN["P_U_MUC_LLAMA_JSON"].format(document=doc)
     prompt = [{'role': 'system', 'content': prompt_system}]
-    prompt.append({"role":"user","content":doc})
+    prompt.append({"role":"user","content":prompt_user})
     prompt_token_ids = tokenizer.apply_chat_template(prompt, add_generation_prompt=True)
     return prompt_token_ids
 
@@ -44,16 +45,15 @@ split = args.split
 language = args.language
 n = args.n
 path_read = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_simplified_preprocess.jsonl"
-path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_rejectionSampling_JSON"+str(n)+".jsonl"
+path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/rejectionSampling/"+split+"_JSON_"+str(n)+".jsonl"
 if os.path.exists(path_write):
     os.remove(path_write)
 
 model_name = model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/Llama-3.3-70B-Instruct"
 #model_name = "meta-llama/Llama-3.3-70B-Instruct"
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
-set_seed(42)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-llm = LLM(model=model_name, tensor_parallel_size=4, gpu_memory_utilization=0.90, max_model_len=40000)
+llm = LLM(model=model_name, tensor_parallel_size=4, enforce_eager=True, gpu_memory_utilization=0.90, max_model_len=10000)
 inputs = []
 pre_dicts = []
 
@@ -72,12 +72,13 @@ with open(path_read, 'r') as file:
 terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]  
-guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="lm-format-enforcer")
+guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="outlines")
 result_1 = llm.generate(
     prompt_token_ids=inputs,
     sampling_params=SamplingParams(
         temperature=0.7, #Recommended value
         max_tokens=1000,
+        seed=42,
         stop_token_ids=terminators,
         guided_decoding=guided_decoding_params,
         n=n

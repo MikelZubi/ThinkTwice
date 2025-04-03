@@ -7,6 +7,7 @@ import torch
 from accelerate import PartialState
 #import numpy as np 
 #from utils import *
+from transformers.integrations import HfDeepSpeedConfig, deepspeed_config
 import argparse
 
 #Argument parser
@@ -18,6 +19,8 @@ parser.add_argument('--natural-reasoning', dest='natural_reasoning', action='sto
 parser.add_argument('--batch-size', dest="batch_size", type=int)
 parser.add_argument("--base-model", dest="base_model", type=str, default='meta-llama/Meta-Llama-3.1-8B-Instruct')
 parser.add_argument("--out-dir", dest="out_dir", type=str, default='Model_JSONV2')
+parser.add_argument("--model-path", dest="model_path", type=str)
+
 parser.set_defaults(reasoning=False)
 parser.set_defaults(natural_reasoning=False)
 parser.set_defaults(batch_size=2)
@@ -28,29 +31,25 @@ args = parser.parse_args()
 max_seq_length = 5000
 
 modelname = args.base_model
-if modelname != "meta-llama/Meta-Llama-3.1-8B-Instruct":
-    r1 = True
+if modelname != "DeepSeek-R1-Distill-Llama-8B":
+    chat = False
 else:
-    r1 = False
+    chat = True
 tokenizer = AutoTokenizer.from_pretrained(modelname, padding_side='right') #Igual ezkerrean jarri beharko da?
 tokenizer.pad_token = "<|finetune_right_pad_id|>"
 tokenizer.pad_token_id = tokenizer.encode(tokenizer.pad_token, add_special_tokens=False)[0]
 print(tokenizer.pad_token_id)
 print(tokenizer.pad_token)
 tokenizer.model_max_length = max_seq_length
-data = create_dataset(tokenizer,'en',r1=r1,reasoning=args.reasoning,natural_reasoning=args.natural_reasoning)
+data = create_dataset(tokenizer,'en',chat=chat,reasoning=args.reasoning,natural_reasoning=args.natural_reasoning)
 
 
 IDS = data['dev']['id']
 
-device_string = PartialState().process_index
-model = AutoModelForCausalLM.from_pretrained(modelname, device_map={'': device_string}, torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
-#model = AutoModelForCausalLM.from_pretrained(modelname, device_map="auto", torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
-model.config.pad_token_id = tokenizer.pad_token_id
-model.config.pad_token = tokenizer.pad_token
+
 
 instruct_template = "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
-if modelname == "meta-llama/Meta-Llama-3.1-8B-Instruct":
+if modelname != "DeepSeek-R1-Distill-Llama-8B":
     response_template = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 
 else:
@@ -74,9 +73,9 @@ if modelname != "meta-llama/Meta-Llama-3.1-8B-Instruct":
     out_dir = out_dir + "_R1"
     run_name = run_name + "_R1"
 
-peft_config = LoraConfig(
-        task_type='CAUSAL_LM', inference_mode=False, target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj','gate_proj'], r=128, lora_alpha=128
-    )
+#peft_config = LoraConfig(
+#        task_type='CAUSAL_LM', inference_mode=False, target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj','gate_proj'], r=128, lora_alpha=128
+#    )
 
 '''
 def preprocess_logits_for_metrics(logits, labels):
@@ -109,7 +108,7 @@ data_train = data['train']
 data_dev = data['dev']
 gradient_acumulation = 128//(args.batch_size * 4)
 # Define the trainer
-deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero2.json"
+deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero3.json"
 config = SFTConfig(
     gradient_accumulation_steps=gradient_acumulation,
     output_dir=out_dir,
@@ -123,7 +122,7 @@ config = SFTConfig(
     weight_decay=5e-5,
     learning_rate=2e-4,
     bf16=True,
-    report_to='wandb', # 'wandb',
+    report_to='tensorboard', # 'wandb',
     do_train=True,
     use_liger=True,
     max_seq_length=max_seq_length,
@@ -131,12 +130,27 @@ config = SFTConfig(
     packing=False,
     logging_steps=50
 )
+
+if deepspeed_config() is None:
+    deepspeed_config_path = config.deepspeed
+    if deepspeed_config_path is not None:
+        deepspeed_config_obj = HfDeepSpeedConfig(deepspeed_config)
+    else:
+        raise ValueError("Deepspeed config is not provided.")
+#device_string = PartialState().process_index
+model_path = args.model_path + modelname
+model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
+#model = AutoModelForCausalLM.from_pretrained(modelname, device_map="auto", torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
+model.config.pad_token_id = tokenizer.pad_token_id
+model.config.pad_token = tokenizer.pad_token
+
+
 train = SFTTrainer(
         model=model,
         args=config,
         train_dataset=data_train,
         processing_class=tokenizer,
-        peft_config=peft_config,
+        #peft_config=peft_config,
         #compute_metrics=compute_metrics,
         #preprocess_logits_for_metrics = preprocess_logits_for_metrics,
         data_collator=data_collator,

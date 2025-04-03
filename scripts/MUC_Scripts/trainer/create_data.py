@@ -2,11 +2,37 @@ from datasets import Dataset, DatasetDict
 from collections import defaultdict
 import json
 import copy as cp
+import sys
+sys.path.append("prompt_library")
+from init import PROMPT_FN
+
 
 
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
 
+
 def generate_prompt_train(tokenizer, language_code,line_dict,reasoning_tag,reasoning=False,cold_start=False):
+    language = LANGUAGE_MAP[language_code]
+    if reasoning:
+        prompt = [{'role': 'user', 'content': PROMPT_FN["P_U_MUC_70BR1_REASONING"].format(language=language, document=line_dict["doctext"])}]
+        prompt.append({"role": "assistant", "content": line_dict[reasoning_tag]})
+    else:
+        prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language, document=line_dict["doctext"])}]
+        prompt.append({"role": "user", "content": PROMPT_FN["P_U_MUC_LLAMA_JSON"].format(document=line_dict["doctext"])})
+        template_str = json.dumps(line_dict["templates"], ensure_ascii=False)
+        prompt.append({"role": "assistant", "content": template_str})
+    return tokenizer.apply_chat_template(prompt, add_generation_prompt=True)
+
+
+def generate_text_train(tokenizer, language_code,line_dict,reasoning_tag,reasoning=False,cold_start=False):
+    language = LANGUAGE_MAP[language_code]
+    if reasoning:
+        prompt = PROMPT_FN["P_U_MUC_8BR1_REASONING"].format(language=language, document=line_dict["doctext"])
+        prompt += PROMPT_FN["P_A_MUC_8BR1_REASONING"].format(reasoning=line_dict[reasoning_tag])
+    
+    return tokenizer(prompt)
+'''
+def generate_prompt_train_old(tokenizer, language_code,line_dict,reasoning_tag,reasoning=False,cold_start=False):
     language = LANGUAGE_MAP[language_code]
     if reasoning:
         prompt = [{'role': 'system', 'content': 'You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+'. For that, you need to follow two steps. The first one is the following: you need to identify what incident types are happening in the next document. The incident types can be the following ones: "kidnapping", "attack", "bombing", "robbery", "arson", and "forced work stoppage". The second and last step is to extract the entities of the document that take part on the incident types that you have extracted in the previous step. The entities can be of the following types: "A person responsible for the incident (PerpInd)", "An organization responsible for the incident (PerpOrg)", "An inanimate object that was attacked (Target)", "The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack (Victim)", and "A device used by the perpetrator(s) in carrying out the terrorist act (Weapon)". After that, you need to create a JSON that stores the information that you have extracted.'}]
@@ -27,7 +53,7 @@ def generate_prompt_train(tokenizer, language_code,line_dict,reasoning_tag,reaso
     return tokenized_prompt, grpo_prompt, grpo_completion
 
 
-def generate_text_train(language_code,line_dict,reasoning_tag,reasoning=False,cold_start=False):
+def generate_text_train_old(language_code,line_dict,reasoning_tag,reasoning=False,cold_start=False):
     language = LANGUAGE_MAP[language_code]
     if reasoning:
         prompt = '<USER> You are an expert in information extraction, you need to extract the information of the document that is provided in '+language+'. For that, you need to follow two steps. The first one is the following: you need to identify what incident types are happening in the next document. The incident types can be the following ones: "kidnapping", "attack", "bombing", "robbery", "arson", and "forced work stoppage". The second and last step is to extract the entities of the document that take part on the incident types that you have extracted in the previous step. The entities can be of the following types: "A person responsible for the incident (PerpInd)", "An organization responsible for the incident (PerpOrg)", "An inanimate object that was attacked (Target)", "The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack (Victim)", and "A device used by the perpetrator(s) in carrying out the terrorist act (Weapon)". After that, you need to create a JSON that stores the information that you have extracted. The document is the next one:\n"' + line_dict["doctext"] +'" </USER>\n'
@@ -49,9 +75,9 @@ def generate_text_train(language_code,line_dict,reasoning_tag,reasoning=False,co
     
 def convert_docid(docid: str) -> str:
     return str(int(docid.split("-")[0][-1]) * 10000 + int(docid.split("-")[-1]))
+'''
 
-
-def create_dataset(tokenizer, language, r1=False,reasoning=False,natural_reasoning=False, GRPO=False,cold_start=False):
+def create_dataset(tokenizer, language, chat=True,reasoning=False,natural_reasoning=False, GRPO=False,cold_start=False):
 
     datasetdict = {}
     for split in ["dev","train"]:
@@ -76,7 +102,7 @@ def create_dataset(tokenizer, language, r1=False,reasoning=False,natural_reasoni
                 id = line_dict["docid"]
                 data_dict["id"].append(id)
                 #TODO
-                if not r1: 
+                if chat: 
                     prompt, init_prompt, completion = generate_prompt_train(tokenizer, language,line_dict,reasoning_tag=reasoning_tag,reasoning=reasoning,cold_start=cold_start)
                 else:
                     prompt, init_prompt, completion = generate_text_train(language,line_dict,reasoning_tag=reasoning_tag,reasoning=reasoning,cold_start=cold_start)

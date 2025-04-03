@@ -97,13 +97,14 @@ with open(gold_path, "r") as file:
         labels.append(label)
 
 completions = []
-paths = {"Reasoning": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejection_sampling/dev_rejectionSampling_"+str(x)+".jsonl", "JSON": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejection_sampling/dev_rejectionSampling_JSON"+str(x)+".jsonl"}
+paths = {"Reasoning": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_Reasoning_"+str(x)+".jsonl", "StepReasoning": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_StepReasoning_"+str(x)+".jsonl", "JSON": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_JSON_"+str(x)+".jsonl"}
 header = ["Type","n","F1","Precision","Recall","STD"]
 out_list = []
 ns = [1,2,4,8,16,32,64]
 stds = []
 for key in paths:
     for n in ns:
+        stds.clear()
         path = paths[key](n)
         best_f1s = []
         dis = 0
@@ -135,7 +136,10 @@ for key in paths:
                 pred_id = str(
                         int(id.split("-")[0][-1]) * 10000
                         + int(id.split("-")[-1]))
-                std = np.std(current_f1s)
+                if n > 1:
+                    std = np.std(current_f1s)
+                else:
+                    std = 0
                 stds.append(std)
                 best_templates[pred_id] = {"pred_templates":best_template,"gold_templates":gold}
             values = score(pred_data=best_templates, ref_data=labels)
@@ -145,7 +149,7 @@ for key in paths:
             std = np.mean(stds)
             out_list.append([key,n,f1,precision,recall,std])
 
-out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejection_sampling/scores.csv"
+out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/scores.csv"
 with open(out_path, 'w', newline='') as file:
     writer = csv.writer(file)
     header = ["Type","n","F1","Precision","Recall","STD"]
