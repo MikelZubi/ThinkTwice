@@ -3,6 +3,7 @@ import json
 import sys
 import numpy as np
 import csv
+import copy as cp
 sys.path.append('multimuc/iterx/src')
 
 from iterx.metrics.muc.ceaf_rme import ScoreFunction
@@ -66,7 +67,7 @@ def score(
         normalize_role=normalize_role
     )
     results = metric.get_metric(reset=True)
-    return results 
+    return results
 
 
 def postprocess(id,pred,label):
@@ -78,15 +79,16 @@ def postprocess(id,pred,label):
                 + int(id.split("-")[-1]))
     post_preds[pred_id] = pred_json
     post_labels.append({"docid": id, "templates": label})
-    return post_preds, post_labels    
+    return post_preds, post_labels
 
 
 #READ GOLD
-gold_path = "multimuc/data/multimuc_v1.0/corrected/en/dev.jsonl"#IDATZI
+gold_path = "multimuc/data/multimuc_v1.0/corrected/en/train.jsonl"#IDATZI
 ground_truths = []
 ids = []
 documents = []
 labels = []
+outputs = []
 with open(gold_path, "r") as file:
     for line in file:
         data = json.loads(line)
@@ -97,65 +99,49 @@ with open(gold_path, "r") as file:
         labels.append(label)
 
 completions = []
-paths = {"Reasoning": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_Reasoning_"+str(x)+".jsonl", "StepReasoning": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_StepReasoning_"+str(x)+".jsonl", "JSON": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_JSON_"+str(x)+".jsonl"}
-header = ["Type","n","F1","Precision","Recall","STD","Mean"]
+header = ["Type","n","F1","Precision","Recall","STD"]
 out_list = []
 ns = [1,2,4,8,16,32,64]
 stds = []
-means = []
-for key in paths:
-    for n in ns:
-        stds.clear()
-        path = paths[key](n)
-        best_f1s = []
-        dis = 0
-        best_templates = {}
-        with open(path, "r") as file:
-            for line, gold, id, document in zip(file,ground_truths,ids,documents):
-                data = json.loads(line)
-                f1 = 0.0
-                two_empty = False
-                gold_empty = False
-                best_template = []
-                current_f1s = []
-                print(len(data["pred_json"]))
-                for template in data["pred_json"]:
-                    if template != ["ERROR"]:
-                        completion, ground_truth = postprocess("TST1-MUC3-0001",template,gold)
-                        score_result = score(pred_data=completion, ref_data=ground_truth)
-                        current_f1 = score_result["iterx_muc_slot_f1"]
-                        if gold == []:
-                            gold_empty = True
-                        if gold == [] and template == [] and not two_empty:
-                            two_empty = True
-                            dis += 1
-                        if current_f1 > f1:
-                            best_template = template
-                            f1 = current_f1
-                        current_f1s.append(current_f1)
-                best_f1s.append(f1)
-                pred_id = str(
-                        int(id.split("-")[0][-1]) * 10000
-                        + int(id.split("-")[-1]))
-                if n > 1:
-                    std = np.std(current_f1s)
-                    mean = np.mean(current_f1s)
-                else:
-                    std = 0
-                    mean = 0
-                stds.append(std)
-                means.append(mean)
-                best_templates[pred_id] = {"pred_templates":best_template,"gold_templates":gold}
-            values = score(pred_data=best_templates, ref_data=labels)
-            precision = values["iterx_muc_slot_p"]
-            recall = values["iterx_muc_slot_r"]
-            f1 = values["iterx_muc_slot_f1"]
-            std = np.mean(stds)
-            mean = np.mean(means)
-            out_list.append([key,n,f1,precision,recall,std,mean])
+path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/train_Reasoning_64.jsonl" #TODO
+best_f1s = []
+dis = 0
+outputs = []
+with open(path, "r") as file:
+    for line, gold, id, document in zip(file,ground_truths,ids,documents):
+        data = json.loads(line)
+        f1 = 0.0
+        two_empty = False
+        gold_empty = False
+        best_template = []
+        current_f1s = []
+        print(len(data["pred_json"]))
+        pred_data = []
+        for template,reasoning in zip(data["pred_json"],data["pred_reasoning"]):
+            if template != ["ERROR"]:
+                completion, ground_truth = postprocess("TST1-MUC3-0001",template,gold)
+                score_result = score(pred_data=completion, ref_data=ground_truth)
+                current_f1 = score_result["iterx_muc_slot_f1"]
+                if gold == []:
+                    gold_empty = True
+                if gold == [] and template == [] and not two_empty:
+                    two_empty = True
+                    dis += 1
+                if current_f1 > f1:
+                    best_template = template
+                    f1 = current_f1
+                current_f1s.append(current_f1)
+                pred_data.append((current_f1, template, reasoning))
+        pred_data.sort(key=lambda x: x[0], reverse=True)
+        selected_values = pred_data[:32]
+        for _, template, reasoning in selected_values:
+            if template != ["ERROR"]:
+                completion, ground_truth = postprocess("TST1-MUC3-0001",template,gold)
+                score_result = score(pred_data=completion, ref_data=ground_truth)
+                current_f1 = score_result["iterx_muc_slot_f1"]
+                outputs.append({"docid": id, "completion": reasoning + template, "doctext": document})
 
-out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/scores.csv"
-with open(out_path, 'w', newline='') as file:
-    writer = csv.writer(file)
-    writer.writerow(header)
-    writer.writerows(out_list)
+out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/train_best32.jsonl"
+with open(out_path, 'w') as file:
+    for line in outputs:
+        file.write(json.dumps(line) + "\n")

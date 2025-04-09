@@ -80,14 +80,16 @@ if modelname != "meta-llama/Meta-Llama-3.1-8B-Instruct":
 '''
 def preprocess_logits_for_metrics(logits, labels):
     if isinstance(logits, tuple):
+    asdf
         logits = logits[0]
     return logits.argmax(dim=-1)
 
 def compute_metrics(eval_preds):
     preds, labels = eval_preds
-
+aa
     if isinstance(preds, tuple):
         preds = preds[0]
+        asdfasdf
 
     # Replace -100 in the preds as we can't decode them
     preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
@@ -140,7 +142,7 @@ if deepspeed_config() is None:
 #device_string = PartialState().process_index
 model_path = args.model_path + modelname
 model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
-#model = AutoModelForCausalLM.from_pretrained(modelname, device_map="auto", torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
+model = AutoModelForCausalLM.from_pretrained(modelname, device_map="auto", torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
 model.config.pad_token_id = tokenizer.pad_token_id
 model.config.pad_token = tokenizer.pad_token
 

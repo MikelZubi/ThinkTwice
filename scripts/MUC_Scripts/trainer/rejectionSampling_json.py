@@ -49,7 +49,9 @@ path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/rejectionSa
 if os.path.exists(path_write):
     os.remove(path_write)
 
-model_name = model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/Llama-3.3-70B-Instruct"
+
+guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="lm-format-enforcer")
+model_name = "/scratch/ehu_p518_1/ehu_p518_1_1/Ereduak/DeepSeek-R1-Distill-Llama-70B"
 #model_name = "meta-llama/Llama-3.3-70B-Instruct"
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -72,7 +74,6 @@ with open(path_read, 'r') as file:
 terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]  
-guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="outlines")
 result_1 = llm.generate(
     prompt_token_ids=inputs,
     sampling_params=SamplingParams(

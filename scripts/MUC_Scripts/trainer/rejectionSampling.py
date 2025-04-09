@@ -57,7 +57,8 @@ if os.path.exists(path_write):
     os.remove(path_write)
 
 #model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
-model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B"
+#model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B"
+model_name = "/scratch/ehu_p518_1/ehu_p518_1_1/Ereduak/DeepSeek-R1-Distill-Llama-70B"
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 llm = LLM(model=model_name, tensor_parallel_size=4, enforce_eager=True, gpu_memory_utilization=0.90, max_model_len=10000)
@@ -103,7 +104,7 @@ terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]
 
-guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="outlines")
+guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="lm-format-enforcer")
 result_2 = llm.generate(
     prompt_token_ids=new_inputs,
     sampling_params=SamplingParams(
