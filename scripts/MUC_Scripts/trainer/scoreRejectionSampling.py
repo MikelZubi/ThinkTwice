@@ -118,6 +118,7 @@ for key in paths:
                 gold_empty = False
                 best_template = []
                 current_f1s = []
+                current_f1 = 0.0
                 print(len(data["pred_json"]))
                 for template in data["pred_json"]:
                     if template != ["ERROR"]:
@@ -126,9 +127,8 @@ for key in paths:
                         current_f1 = score_result["iterx_muc_slot_f1"]
                         if gold == []:
                             gold_empty = True
-                        if gold == [] and template == [] and not two_empty:
-                            two_empty = True
-                            dis += 1
+                        if gold == [] and template == []:
+                            current_f1 = 1.0
                         if current_f1 > f1:
                             best_template = template
                             f1 = current_f1
@@ -142,9 +142,10 @@ for key in paths:
                     mean = np.mean(current_f1s)
                 else:
                     std = 0
-                    mean = 0
-                stds.append(std)
-                means.append(mean)
+                    mean = current_f1
+                if not gold_empty:
+                    means.append(mean)
+                    stds.append(std)
                 best_templates[pred_id] = {"pred_templates":best_template,"gold_templates":gold}
             values = score(pred_data=best_templates, ref_data=labels)
             precision = values["iterx_muc_slot_p"]
@@ -152,6 +153,7 @@ for key in paths:
             f1 = values["iterx_muc_slot_f1"]
             std = np.mean(stds)
             mean = np.mean(means)
+            print(mean)
             out_list.append([key,n,f1,precision,recall,std,mean])
 
 out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/scores.csv"

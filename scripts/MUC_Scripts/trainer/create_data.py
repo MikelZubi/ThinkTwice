@@ -15,22 +15,27 @@ def generate_prompt_train(tokenizer, language_code,line_dict,reasoning_tag,reaso
     language = LANGUAGE_MAP[language_code]
     if reasoning:
         prompt = [{'role': 'user', 'content': PROMPT_FN["P_U_MUC_70BR1_REASONING"].format(language=language, document=line_dict["doctext"])}]
-        prompt.append({"role": "assistant", "content": line_dict[reasoning_tag]})
+        prompt.append({"role": "assistant", "content": "<think>\n" + line_dict[reasoning_tag]})
     else:
-        prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language, document=line_dict["doctext"])}]
+        prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language)}]
         prompt.append({"role": "user", "content": PROMPT_FN["P_U_MUC_LLAMA_JSON"].format(document=line_dict["doctext"])})
         template_str = json.dumps(line_dict["templates"], ensure_ascii=False)
         prompt.append({"role": "assistant", "content": template_str})
-    return tokenizer.apply_chat_template(prompt, add_generation_prompt=True)
+    print(prompt)
+    chat_prompt = tokenizer.apply_chat_template(prompt, add_generation_prompt=False, tokenize=False)
+    corrected_prompt = chat_prompt.replace("</THINK_TOKENA>", "</think>")
+    print(corrected_prompt)
+    return corrected_prompt
 
 
-def generate_text_train(tokenizer, language_code,line_dict,reasoning_tag,reasoning=False,cold_start=False):
+def generate_text_train(language_code,line_dict,reasoning_tag,reasoning=False,cold_start=False):
     language = LANGUAGE_MAP[language_code]
+    prompt = ""
     if reasoning:
         prompt = PROMPT_FN["P_U_MUC_8BR1_REASONING"].format(language=language, document=line_dict["doctext"])
         prompt += PROMPT_FN["P_A_MUC_8BR1_REASONING"].format(reasoning=line_dict[reasoning_tag])
     
-    return tokenizer(prompt)
+    return prompt
 '''
 def generate_prompt_train_old(tokenizer, language_code,line_dict,reasoning_tag,reasoning=False,cold_start=False):
     language = LANGUAGE_MAP[language_code]
@@ -77,18 +82,20 @@ def convert_docid(docid: str) -> str:
     return str(int(docid.split("-")[0][-1]) * 10000 + int(docid.split("-")[-1]))
 '''
 
-def create_dataset(tokenizer, language, chat=True,reasoning=False,natural_reasoning=False, GRPO=False,cold_start=False):
+def create_dataset(tokenizer, language, chat=True,reasoning=False,natural_reasoning=False, GRPO=False,cold_start=False, rejectionSampling=False, n=32,splits=["train"]):
 
     datasetdict = {}
-    for split in ["dev","train"]:
-        path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/"+split+"_simplified_preprocess.jsonl"
-        reasoning_tag = "reasoning"
+    for split in splits:
+        if rejectionSampling:
+            path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/rejectionSampling/"+split+"_best"+str(n)+".jsonl"
+        else:
+            path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/"+split+"_simplified_preprocess.jsonl"
         path_ground_truth = "multimuc/data/multimuc_v1.0/corrected/"+language+"/"+split+".jsonl"
-        if natural_reasoning:
-            path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/"+split+"_simplified_CoT.jsonl"
-            reasoning_tag = "corrected_reasoning"
+        #if natural_reasoning:
+        #    path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/"+split+"_simplified_CoT.jsonl"
+        reasoning_tag = "completion"
 
-    
+
         data_dict = defaultdict(lambda: [])
 
         # Load the dataset
@@ -102,15 +109,21 @@ def create_dataset(tokenizer, language, chat=True,reasoning=False,natural_reason
                 id = line_dict["docid"]
                 data_dict["id"].append(id)
                 #TODO
-                if chat: 
-                    prompt, init_prompt, completion = generate_prompt_train(tokenizer, language,line_dict,reasoning_tag=reasoning_tag,reasoning=reasoning,cold_start=cold_start)
+                if chat:
+                    #prompt, init_prompt, completion = generate_prompt_train(tokenizer, language,line_dict,reasoning_tag=reasoning_tag,reasoning=reasoning,cold_start=cold_start)
+                    prompt = generate_prompt_train(tokenizer, language, line_dict,
+                                                                            reasoning_tag=reasoning_tag,
+                                                                            reasoning=rejectionSampling, cold_start=cold_start)
                 else:
-                    prompt, init_prompt, completion = generate_text_train(language,line_dict,reasoning_tag=reasoning_tag,reasoning=reasoning,cold_start=cold_start)
+                    #prompt, init_prompt, completion = generate_text_train(language,line_dict,reasoning_tag=reasoning_tag,reasoning=reasoning,cold_start=cold_start)
+                    prompt = generate_text_train(language, line_dict,
+                                                                          reasoning_tag=reasoning_tag,
+                                                                          reasoning=rejectionSampling, cold_start=cold_start)
                 if not GRPO:
                     data_dict["text"].append(prompt)
-                if GRPO: 
-                    data_dict["prompt"].append(init_prompt)
-                    data_dict["completion"].append(completion)
+                if GRPO:
+                    #data_dict["prompt"].append(init_prompt)
+                    #data_dict["completion"].append(completion)
                     line_dict_gt = json.loads(line_gt)
                     data_dict["ground_truth"].append(json.dumps(line_dict_gt["templates"], ensure_ascii=False))
 

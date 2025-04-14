@@ -10,48 +10,55 @@ from accelerate import PartialState
 from transformers.integrations import HfDeepSpeedConfig, deepspeed_config
 import argparse
 
+
 #Argument parser
 parser = argparse.ArgumentParser(description='Arguments required to the SFT trainer')
-parser.add_argument('--reasoning', dest='reasoning', action='store_true',
-                    help='Use reasoning.')
-parser.add_argument('--natural-reasoning', dest='natural_reasoning', action='store_true',
-                    help='Use natural reasoning, default to artificial.')
+#parser.add_argument('--reasoning', dest='reasoning', action='store_true',
+#                    help='Use reasoning.')
+#parser.add_argument('--natural-reasoning', dest='natural_reasoning', action='store_true',
+#                    help='Use natural reasoning, default to artificial.')
+parser.add_argument('--sampling', dest='sampling', action='store_true')
 parser.add_argument('--batch-size', dest="batch_size", type=int)
 parser.add_argument("--base-model", dest="base_model", type=str, default='meta-llama/Meta-Llama-3.1-8B-Instruct')
 parser.add_argument("--out-dir", dest="out_dir", type=str, default='Model_JSONV2')
 parser.add_argument("--model-path", dest="model_path", type=str)
+parser.add_argument("--n", dest="n", type=int)
 
-parser.set_defaults(reasoning=False)
-parser.set_defaults(natural_reasoning=False)
+parser.set_defaults(sampling=False)
+#parser.set_defaults(natural_reasoning=False)
 parser.set_defaults(batch_size=2)
+parser.set_defaults(n=32)
 
 args = parser.parse_args()
 
 
-max_seq_length = 5000
-
+max_seq_length = 7000
+n = args.n
 modelname = args.base_model
-if modelname != "DeepSeek-R1-Distill-Llama-8B":
+model_path = args.model_path + modelname
+sampling = args.sampling
+if modelname == "DeepSeek-R1-Distill-Llama-8B":
     chat = False
 else:
     chat = True
-tokenizer = AutoTokenizer.from_pretrained(modelname, padding_side='right') #Igual ezkerrean jarri beharko da?
+
+tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side='right') #Igual ezkerrean jarri beharko da?
 tokenizer.pad_token = "<|finetune_right_pad_id|>"
 tokenizer.pad_token_id = tokenizer.encode(tokenizer.pad_token, add_special_tokens=False)[0]
 print(tokenizer.pad_token_id)
 print(tokenizer.pad_token)
 tokenizer.model_max_length = max_seq_length
-data = create_dataset(tokenizer,'en',chat=chat,reasoning=args.reasoning,natural_reasoning=args.natural_reasoning)
+data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=sampling, n=n)
 
 
-IDS = data['dev']['id']
 
 
 
 instruct_template = "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
-if modelname != "DeepSeek-R1-Distill-Llama-8B":
+if modelname == "DeepSeek-R1-Distill-Llama-70B":
+    response_template = "<｜Assistant｜>"
+elif modelname != "DeepSeek-R1-Distill-Llama-8B":
     response_template = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-
 else:
     response_template = "<ASSISTANT>"
 #data_collator = DataCollatorForCompletionOnlyLM(response_template=tokenizer.encode(response_template,add_special_tokens=False), instruction_template=instruct_template,tokenizer=tokenizer)
@@ -59,34 +66,25 @@ data_collator = DataCollatorForCompletionOnlyLM(response_template=response_templ
 
 
 batch_size = args.batch_size
-if args.reasoning and not args.natural_reasoning: 
-    out_dir = "Model_Reasoning_LORA"
-    run_name = 'SFT_Reasoning'
-elif args.reasoning and args.natural_reasoning:
-    out_dir = "Model_Natural_Reasoning_LORA"
-    run_name = 'SFT_Natural_Reasoning'
+if sampling:
+    out_dir = args.out_dir + "Sampling_LORA_" + str(n)
+    run_name = "SFT_Sampling_" + str(n)
 else:
-    out_dir = "Model_JSON_LORA"
-    run_name = 'SFT_JSON'
+    out_dir = args.out_dir + "JSON_LORA"
+    run_name = args.out_dir + "SFT_JSON"
 
-if modelname != "meta-llama/Meta-Llama-3.1-8B-Instruct":
-    out_dir = out_dir + "_R1"
-    run_name = run_name + "_R1"
-
-#peft_config = LoraConfig(
-#        task_type='CAUSAL_LM', inference_mode=False, target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj','gate_proj'], r=128, lora_alpha=128
-#    )
+peft_config = LoraConfig(
+        task_type='CAUSAL_LM', inference_mode=False, target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj','gate_proj'], r=128, lora_alpha=128
+    )
 
 '''
 def preprocess_logits_for_metrics(logits, labels):
     if isinstance(logits, tuple):
-    asdf
         logits = logits[0]
     return logits.argmax(dim=-1)
 
 def compute_metrics(eval_preds):
     preds, labels = eval_preds
-aa
     if isinstance(preds, tuple):
         preds = preds[0]
         asdfasdf
@@ -107,7 +105,7 @@ aa
 '''
 
 data_train = data['train']
-data_dev = data['dev']
+print(data_train[0])
 gradient_acumulation = 128//(args.batch_size * 4)
 # Define the trainer
 deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero3.json"
@@ -116,21 +114,22 @@ config = SFTConfig(
     output_dir=out_dir,
     run_name=run_name,
     overwrite_output_dir=True,
-    save_strategy='steps',
-    save_steps=50,
-    num_train_epochs=100, 
+    save_strategy='epoch',
+    num_train_epochs=4,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
     weight_decay=5e-5,
     learning_rate=2e-4,
     bf16=True,
-    report_to='tensorboard', # 'wandb',
+    report_to='none', # 'wandb',
     do_train=True,
-    use_liger=True,
+#    use_liger=True,
     max_seq_length=max_seq_length,
     deepspeed = deepspeed,
     packing=False,
-    logging_steps=50
+    label_names=["labels"],
+    gradient_checkpointing=True,
+    #logging_steps=50
 )
 
 if deepspeed_config() is None:
@@ -140,9 +139,8 @@ if deepspeed_config() is None:
     else:
         raise ValueError("Deepspeed config is not provided.")
 #device_string = PartialState().process_index
-model_path = args.model_path + modelname
 model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
-model = AutoModelForCausalLM.from_pretrained(modelname, device_map="auto", torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
+#model = AutoModelForCausalLM.from_pretrained(modelname, device_map="auto", torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
 model.config.pad_token_id = tokenizer.pad_token_id
 model.config.pad_token = tokenizer.pad_token
 
