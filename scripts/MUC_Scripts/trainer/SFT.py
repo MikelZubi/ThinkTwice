@@ -23,16 +23,20 @@ parser.add_argument("--base-model", dest="base_model", type=str, default='meta-l
 parser.add_argument("--out-dir", dest="out_dir", type=str, default='Model_JSONV2')
 parser.add_argument("--model-path", dest="model_path", type=str)
 parser.add_argument("--n", dest="n", type=int)
+parser.add_argument("--lora", dest="lora", action='store_true')
+
+
 
 parser.set_defaults(sampling=False)
 #parser.set_defaults(natural_reasoning=False)
 parser.set_defaults(batch_size=2)
 parser.set_defaults(n=32)
+parser.set_defaults(lora=False)
 
 args = parser.parse_args()
 
 
-max_seq_length = 7000
+max_seq_length = 5000
 n = args.n
 modelname = args.base_model
 model_path = args.model_path + modelname
@@ -66,16 +70,22 @@ data_collator = DataCollatorForCompletionOnlyLM(response_template=response_templ
 
 
 batch_size = args.batch_size
-if sampling:
-    out_dir = args.out_dir + "Sampling_LORA_" + str(n)
-    run_name = "SFT_Sampling_" + str(n)
-else:
-    out_dir = args.out_dir + "JSON_LORA"
-    run_name = args.out_dir + "SFT_JSON"
+lora = args.lora
 
-peft_config = LoraConfig(
-        task_type='CAUSAL_LM', inference_mode=False, target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj','gate_proj'], r=128, lora_alpha=128
-    )
+
+if sampling:
+
+    out_dir = args.out_dir + "Sampling_" + str(n)
+    run_name = "SFT_Sampling_" + str(n)
+    if lora:
+        out_dir = out_dir + "_LORA"
+        run_name = run_name + "_LORA"
+else:
+    out_dir = args.out_dir + "JSON"
+    run_name = args.out_dir + "SFT_JSON"
+    if lora:
+        out_dir = out_dir + "_LORA"
+        run_name = run_name + "_LORA"
 
 '''
 def preprocess_logits_for_metrics(logits, labels):
@@ -105,21 +115,32 @@ def compute_metrics(eval_preds):
 '''
 
 data_train = data['train']
-print(data_train[0])
-gradient_acumulation = 128//(args.batch_size * 4)
+#gradient_acumulation = 128//(args.batch_size * 4)
+gradient_acumulation = 1
 # Define the trainer
+if lora:
+    peft_config = LoraConfig(
+        task_type='CAUSAL_LM', inference_mode=False,
+        target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj'], r=128, lora_alpha=128
+    )
+    lr = 2e-4
+else:
+    peft_config = None
+    lr = 5e-5
 deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero3.json"
+train_epochs = (32//n) * 4
 config = SFTConfig(
     gradient_accumulation_steps=gradient_acumulation,
     output_dir=out_dir,
     run_name=run_name,
     overwrite_output_dir=True,
-    save_strategy='epoch',
-    num_train_epochs=4,
+    save_strategy='steps',
+    save_steps=0.34,
+    num_train_epochs=train_epochs,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
     weight_decay=5e-5,
-    learning_rate=2e-4,
+    learning_rate=lr,
     bf16=True,
     report_to='none', # 'wandb',
     do_train=True,
@@ -150,7 +171,7 @@ train = SFTTrainer(
         args=config,
         train_dataset=data_train,
         processing_class=tokenizer,
-        #peft_config=peft_config,
+        peft_config=peft_config,
         #compute_metrics=compute_metrics,
         #preprocess_logits_for_metrics = preprocess_logits_for_metrics,
         data_collator=data_collator,

@@ -21,10 +21,8 @@ def generate_prompt_train(tokenizer, language_code,line_dict,reasoning_tag,reaso
         prompt.append({"role": "user", "content": PROMPT_FN["P_U_MUC_LLAMA_JSON"].format(document=line_dict["doctext"])})
         template_str = json.dumps(line_dict["templates"], ensure_ascii=False)
         prompt.append({"role": "assistant", "content": template_str})
-    print(prompt)
     chat_prompt = tokenizer.apply_chat_template(prompt, add_generation_prompt=False, tokenize=False)
     corrected_prompt = chat_prompt.replace("</THINK_TOKENA>", "</think>")
-    print(corrected_prompt)
     return corrected_prompt
 
 
@@ -130,5 +128,6 @@ def create_dataset(tokenizer, language, chat=True,reasoning=False,natural_reason
                 #data_dict["messages"].append(prompt)
         # Create a Dataset object
         dataset = Dataset.from_dict(data_dict)
-        datasetdict[split] = dataset
+        dataset_suffle = dataset.shuffle(seed=42)
+        datasetdict[split] = dataset_suffle
     return DatasetDict(datasetdict)
