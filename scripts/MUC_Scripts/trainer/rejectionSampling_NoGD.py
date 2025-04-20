@@ -81,8 +81,7 @@ with open(path_read, 'r') as file:
 
 terminators = [
     tokenizer.eos_token_id,
-    tokenizer.convert_tokens_to_ids("<|eot_id|>"),
-    tokenizer.convert_tokens_to_ids("</think>")]  
+    tokenizer.convert_tokens_to_ids("<|eot_id|>")]
 result_1 = llm.generate(
     prompt_token_ids=inputs,
     sampling_params=SamplingParams(
@@ -96,44 +95,25 @@ result_1 = llm.generate(
 )
 new_inputs = []
 for idx, outputs in enumerate(result_1):
-    pre_dicts[idx]["pred_reasoning"] = [output.text for output in outputs.outputs]
-    pre_dicts[idx]["pred_json"] = [None]*n
-    for output in outputs.outputs:
-        new_inputs.append(inputs[idx] + list(output.token_ids))
+    pre_dicts[idx]["pred_reasoning"] = []
+    pre_dicts[idx]["pred_json"] = []
 
-
-terminators = [
-    tokenizer.eos_token_id,
-    tokenizer.convert_tokens_to_ids("<|eot_id|>")]
-
-guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="lm-format-enforcer")
-result_2 = llm.generate(
-    prompt_token_ids=new_inputs,
-    sampling_params=SamplingParams(
-        temperature=0.0,
-        max_tokens=1000,
-        stop_token_ids=terminators,
-        guided_decoding=guided_decoding_params,
-        n=1
-    ),
-    use_tqdm=True
-)
-for idx_n, outputs in enumerate(result_2):
-    idx = idx_n // n
-    post_templates = []
-    try:
-        for template in json.loads(outputs.outputs[0].text)["templates"]:
-            post_processed = {}
-            for key in template.keys():
-                if key != "incident_type" and template[key] != []:
-                    post_processed[key]=[[elem] for elem in template[key]]
-                else:
-                    post_processed[key]=template[key]
-            post_templates.append(post_processed)
-    except:
-        post_templates.append("ERROR") #Only if doesn't stop generating, and reach the maximun number of tokens
-    pre_dicts[idx]["pred_json"][idx_n % n] = post_templates
-
+    for output in outputs:
+        splited_text = output.text.split("</think>")
+        pre_dicts[idx]["pred_reasoning"].append(splited_text[0])
+        post_templates=[]
+        try:
+            for template in json.loads(splited_text[1])["templates"]:
+                post_processed = {}
+                for key in template.keys():
+                    if key != "incident_type" and template[key] != []:
+                        post_processed[key] = [[elem] for elem in template[key]]
+                    else:
+                        post_processed[key] = template[key]
+                post_templates.append(post_processed)
+        except:
+            post_templates.append("ERROR")  # Only if doesn't stop generating, and reach the maximun number of tokens
+        pre_dicts[idx]["pred_json"].append(post_templates)
 
 
 with open(path_write, 'w') as output_file:

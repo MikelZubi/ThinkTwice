@@ -100,7 +100,7 @@ def create_dataset(tokenizer, language, chat=True,reasoning=False,natural_reason
         with open(path_read, "r") as file:
             all_lines = file.readlines()
         with open(path_ground_truth, "r") as file:
-            all_lines_gt = file.readlines()
+            all_lines_gt = file.readlines() * n #TODO: Errebisatu
         for line, line_gt in zip(all_lines, all_lines_gt):
                 line_dict = json.loads(line)
                 #id = convert_docid(line_dict["docid"]) if split == "dev" else line_dict["docid"]
