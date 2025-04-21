@@ -6,7 +6,7 @@ import os
 from torch.distributed import destroy_process_group
 import argparse
 
-import sys 
+import sys
 sys.path.append("class_data")
 sys.path.append("prompt_library")
 from MUC_Class_simplified import *
@@ -98,7 +98,7 @@ for idx, outputs in enumerate(result_1):
     pre_dicts[idx]["pred_reasoning"] = []
     pre_dicts[idx]["pred_json"] = []
 
-    for output in outputs:
+    for output in outputs.outputs:
         splited_text = output.text.split("</think>")
         pre_dicts[idx]["pred_reasoning"].append(splited_text[0])
         post_templates=[]
@@ -114,7 +114,6 @@ for idx, outputs in enumerate(result_1):
         except:
             post_templates.append("ERROR")  # Only if doesn't stop generating, and reach the maximun number of tokens
         pre_dicts[idx]["pred_json"].append(post_templates)
-
 
 with open(path_write, 'w') as output_file:
     for line in pre_dicts:

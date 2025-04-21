@@ -83,7 +83,8 @@ def simplify_template(templates):
                 for element in template[key]:
                     new_template[key].append(element[0])
         new_templates.append(new_template)
-    return json.dumps(new_templates, ensure_ascii=False)
+    dict_templates = {"templates": new_templates}
+    return json.dumps(dict_templates, ensure_ascii=False)
 
 
 def postprocess(id,pred,label):

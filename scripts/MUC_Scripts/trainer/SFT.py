@@ -36,7 +36,7 @@ parser.set_defaults(lora=False)
 args = parser.parse_args()
 
 
-max_seq_length = 5000
+max_seq_length = 5500
 n = args.n
 modelname = args.base_model
 model_path = args.model_path + modelname

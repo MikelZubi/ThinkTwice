@@ -8,13 +8,16 @@ import argparse
 parser = argparse.ArgumentParser(description='Arguments required')
 parser.add_argument('--model-name',dest="model_name", type=str, help='Model name')
 parser.add_argument('--chkpt-path',dest="chkpt_path", type=str, help='Checkpoint path')
+parser.add_argument('--out-dir',dest="out_dir", type=str, help='Output directory')
+
 parser.set_defaults(model_name="/scratch/ehu_p518_1/ehu_p518_1_1/Ereduak/DeepSeek-R1-Distill-Llama-70B")
+parser.set_defaults(out_dir="/scratch/ehu_p518_1/ehu_p518_1_1/SFT/Merged_Model")
 
 args = parser.parse_args()
 model_name = args.model_name
 chkpt_path = args.chkpt_path
 
-merge_path = "/scratch/ehu_p518_1/ehu_p518_1_1/SFT/Merged_Model"
+merge_path = args.out_dir
 model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto", torch_dtype= torch.bfloat16)
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 # Path to save the merged model
