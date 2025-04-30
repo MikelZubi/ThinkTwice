@@ -113,7 +113,10 @@ for idx, outputs in enumerate(result_1):
                 post_templates.append(post_processed)
         except:
             post_templates.append("ERROR")  # Only if doesn't stop generating, and reach the maximun number of tokens
-        pre_dicts[idx]["pred_json"].append(post_templates)
+        if Base.model_validate(post_templates):
+            pre_dicts[idx]["pred_json"].append(post_templates)
+        else:
+            pre_dicts[idx]["pred_json"].append(["ERROR"])
 
 with open(path_write, 'w') as output_file:
     for line in pre_dicts:

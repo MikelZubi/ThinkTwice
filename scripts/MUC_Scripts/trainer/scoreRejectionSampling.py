@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import csv
 sys.path.append('multimuc/iterx/src')
+sys.path.append("Ereduak/")
 
 from iterx.metrics.muc.ceaf_rme import ScoreFunction
 
@@ -11,7 +12,8 @@ from typing import Annotated
 import typer
 from iterx.metrics.ceaf_rme_cmd_utils import DatasetKind, PredictionFileType, load_predictions, load_metric
 from iterx.metrics.muc.ceaf_rme import ScoreFunction
-
+import os
+from MUC_Class_simplified import *
 #RME Functions
 def score(
         pred_data: Dict,
@@ -97,7 +99,20 @@ with open(gold_path, "r") as file:
         labels.append(label)
 
 completions = []
-paths = {"Reasoning": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_Reasoning_"+str(x)+".jsonl", "StepReasoning": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_StepReasoning_"+str(x)+".jsonl", "JSON": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_JSON_"+str(x)+".jsonl"}
+#paths = {"Reasoning": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_Reasoning_"+str(x)+".jsonl", "StepReasoning": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_StepReasoning_"+str(x)+".jsonl", "JSON": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_JSON_"+str(x)+".jsonl"}
+
+paths = {}
+#Iterate files in rejectionSampling/dev
+for file in os.listdir("rejectionSampling/dev"):
+    if file.endswith(".jsonl"):
+        #Extract the type and n from the filename
+        parts = file.split("_")
+        file_type = parts[0] + "_" + parts[1]
+        #Add the path to the dictionary
+        paths[file_type] = lambda x, ct=file_type: "rejectionSampling/dev/" + ct + "_" + str(x) + ".jsonl"
+
+
+
 header = ["Type","n","F1","Precision","Recall","STD","Mean"]
 out_list = []
 ns = [1,2,4,8,16,32,64]
@@ -156,7 +171,7 @@ for key in paths:
             print(mean)
             out_list.append([key,n,f1,precision,recall,std,mean])
 
-out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/scores.csv"
+out_path = "rejectionSampling/dev/scores.csv"
 with open(out_path, 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerow(header)
