@@ -44,7 +44,6 @@ def generate_promt(data,tokenizer,language_code,step_prompt=False):
         user_prompt = PROMPT_FN["P_U_MUC_70BR1_STEPS_REASONING"].format(language=language, document=data["doctext"])
     else:
         user_prompt = PROMPT_FN["P_U_MUC_70BR1_REASONING"].format(language=language, document=data["doctext"])
-    print(user_prompt)
     prompt = [{'role': 'user', 'content': user_prompt}]
     prompt_token_ids = tokenizer.apply_chat_template(prompt, add_generation_prompt=True) + tokenizer.encode("<think>\n")
     return prompt_token_ids
@@ -63,7 +62,7 @@ if os.path.exists(path_write):
 model_name = args.model_name
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-llm = LLM(model=model_name, tensor_parallel_size=4, enforce_eager=True, gpu_memory_utilization=0.90, max_model_len=10000)
+llm = LLM(model=model_name, tensor_parallel_size=4, gpu_memory_utilization=0.90, max_model_len=10000)
 inputs = []
 pre_dicts = []
 
@@ -103,6 +102,7 @@ for idx, outputs in enumerate(result_1):
         pre_dicts[idx]["pred_reasoning"].append(splited_text[0])
         post_templates=[]
         try:
+            _ = Base(**json.loads(splited_text[1]))
             for template in json.loads(splited_text[1])["templates"]:
                 post_processed = {}
                 for key in template.keys():
@@ -112,12 +112,11 @@ for idx, outputs in enumerate(result_1):
                         post_processed[key] = template[key]
                 post_templates.append(post_processed)
         except:
-            post_templates.append("ERROR")  # Only if doesn't stop generating, and reach the maximun number of tokens
-        if Base.model_validate(post_templates):
-            pre_dicts[idx]["pred_json"].append(post_templates)
-        else:
-            pre_dicts[idx]["pred_json"].append(["ERROR"])
+            post_templates.append(["ERROR"])  # Only if doesn't stop generating, and reach the maximun number of tokens
 
+        pre_dicts[idx]["pred_json"].append(post_templates)
+
+print("Done")
 with open(path_write, 'w') as output_file:
     for line in pre_dicts:
         output_file.write(json.dumps(line, ensure_ascii=False) + '\n')
