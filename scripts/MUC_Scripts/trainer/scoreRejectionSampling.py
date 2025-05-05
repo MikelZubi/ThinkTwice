@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import csv
 sys.path.append('multimuc/iterx/src')
-sys.path.append("Ereduak/")
+sys.path.append("class_data/")
 
 from iterx.metrics.muc.ceaf_rme import ScoreFunction
 
@@ -14,6 +14,7 @@ from iterx.metrics.ceaf_rme_cmd_utils import DatasetKind, PredictionFileType, lo
 from iterx.metrics.muc.ceaf_rme import ScoreFunction
 import os
 from MUC_Class_simplified import *
+import argparse
 #RME Functions
 def score(
         pred_data: Dict,
@@ -83,8 +84,15 @@ def postprocess(id,pred,label):
     return post_preds, post_labels    
 
 
+parser = argparse.ArgumentParser(description='Arguments required for the scorer')
+parser.add_argument('--split', dest='split', type=str)
+parser.set_defaults(split="dev")
+args = parser.parse_args()
+split = args.split
+
+
 #READ GOLD
-gold_path = "multimuc/data/multimuc_v1.0/corrected/en/dev.jsonl"#IDATZI
+gold_path = "multimuc/data/multimuc_v1.0/corrected/en/"+split+".jsonl"#IDATZI
 ground_truths = []
 ids = []
 documents = []
@@ -93,9 +101,15 @@ with open(gold_path, "r") as file:
     for line in file:
         data = json.loads(line)
         ground_truths.append(data["templates"])
-        ids.append(data["docid"])
+        if split == "dev":
+            ids.append(data["docid"])
+            corrected_id = data["docid"]
+        else:
+            splited_ids = data["docid"].split("-")
+            corrected_id = splited_ids[1] + "-" + splited_ids[0] + "-" + splited_ids[2]
+            ids.append(corrected_id)
         documents.append(data["doctext"])
-        label = {"docid": data["docid"], "templates": data["templates"]}
+        label = {"docid": corrected_id, "templates": data["templates"]}
         labels.append(label)
 
 completions = []
@@ -103,19 +117,18 @@ completions = []
 
 paths = {}
 #Iterate files in rejectionSampling/dev
-for file in os.listdir("rejectionSampling/dev"):
+for file in os.listdir("rejectionSampling/"+split):
     if file.endswith(".jsonl"):
         #Extract the type and n from the filename
-        parts = file.split("_")
-        file_type = parts[0] + "_" + parts[1]
+        file_type = "_".join(file.split("_")[:-1])
         #Add the path to the dictionary
-        paths[file_type] = lambda x, ct=file_type: "rejectionSampling/dev/" + ct + "_" + str(x) + ".jsonl"
+        paths[file_type] = lambda x, ct=file_type: "rejectionSampling/"+split+"/" + ct + "_" + str(x) + ".jsonl"
 
 
 
 header = ["Type","n","F1","Precision","Recall","STD","Mean"]
 out_list = []
-ns = [1,2,4,8,16,32,64]
+ns = [64]
 stds = []
 means = []
 for key in paths:
@@ -136,7 +149,7 @@ for key in paths:
                 current_f1 = 0.0
                 print(len(data["pred_json"]))
                 for template in data["pred_json"]:
-                    if template != ["ERROR"]:
+                    if template != ["ERROR"] and template != [["ERROR"]]:
                         completion, ground_truth = postprocess("TST1-MUC3-0001",template,gold)
                         score_result = score(pred_data=completion, ref_data=ground_truth)
                         current_f1 = score_result["iterx_muc_slot_f1"]
@@ -171,7 +184,7 @@ for key in paths:
             print(mean)
             out_list.append([key,n,f1,precision,recall,std,mean])
 
-out_path = "rejectionSampling/dev/scores.csv"
+out_path = "rejectionSampling/"+split+"/scores.csv"
 with open(out_path, 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerow(header)
