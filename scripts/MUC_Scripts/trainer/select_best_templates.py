@@ -105,8 +105,14 @@ import argparse
 parser = argparse.ArgumentParser(description='Arguments for the creation of the train dataset')
 parser.add_argument('--n', dest='n', type=int,
                     help='The number of best templates to select.')
+parser.add_argument("--iter", dest="iter", type=int)
+parser.add_argument("--read", dest="read", action='str')
 parser.set_defaults(n=32)
+parser.set_defaults(iter=1)
+parser.set_default()
 n = parser.parse_args().n
+iteration = parser.parse_args().iter
+read = parser.parse_args().read
 #READ GOLD
 gold_path = "multimuc/data/multimuc_v1.0/corrected/en/train.jsonl"#IDATZI
 ground_truths = []
@@ -126,7 +132,7 @@ with open(gold_path, "r") as file:
 
 completions = []
 out_list = []
-path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/train_Reasoning_64.jsonl" #TODO
+path = "rejectionSampling/train/"+str(iteration)+"/"+read #TODO
 best_f1s = []
 dis = 0
 max = 0

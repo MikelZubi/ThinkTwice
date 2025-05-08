@@ -86,9 +86,12 @@ def postprocess(id,pred,label):
 
 parser = argparse.ArgumentParser(description='Arguments required for the scorer')
 parser.add_argument('--split', dest='split', type=str)
+parser.add_argument("--iter", dest='iter', type=int)
 parser.set_defaults(split="dev")
+parser.set_defaults(iter=1)
 args = parser.parse_args()
 split = args.split
+iteration = args.iter
 
 
 #READ GOLD
@@ -117,11 +120,13 @@ completions = []
 
 paths = {}
 #Iterate files in rejectionSampling/dev
+#for file in os.listdir("rejectionSampling/"+split+"/"+str(iteration)+"/"):
 for file in os.listdir("rejectionSampling/"+split):
     if file.endswith(".jsonl"):
         #Extract the type and n from the filename
         file_type = "_".join(file.split("_")[:-1])
         #Add the path to the dictionary
+        #paths[file_type] = lambda x, ct=file_type: "rejectionSampling/"+split+"/"+str(iteration)+"/" + ct + "_" + str(x) + ".jsonl"
         paths[file_type] = lambda x, ct=file_type: "rejectionSampling/"+split+"/" + ct + "_" + str(x) + ".jsonl"
 
 
@@ -184,6 +189,7 @@ for key in paths:
             print(mean)
             out_list.append([key,n,f1,precision,recall,std,mean])
 
+#out_path = "rejectionSampling/"+split+"/scores_iter"+str(iteration)+".csv"
 out_path = "rejectionSampling/"+split+"/scores.csv"
 with open(out_path, 'w', newline='') as file:
     writer = csv.writer(file)

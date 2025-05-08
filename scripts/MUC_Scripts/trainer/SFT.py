@@ -128,7 +128,8 @@ else:
     peft_config = None
     lr = 5e-5
 deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero3.json"
-train_epochs = (32//n) * 4
+#train_epochs = (32//n) * 4
+train_epochs = 4
 config = SFTConfig(
     gradient_accumulation_steps=gradient_acumulation,
     output_dir=out_dir,
