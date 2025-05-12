@@ -36,7 +36,7 @@ parser.set_defaults(lora=False)
 args = parser.parse_args()
 
 
-max_seq_length = 5500
+max_seq_length = 6000
 n = args.n
 modelname = args.base_model
 model_path = args.model_path + modelname
@@ -129,14 +129,13 @@ else:
     lr = 5e-5
 deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero3.json"
 #train_epochs = (32//n) * 4
-train_epochs = 4
+train_epochs = 5
 config = SFTConfig(
     gradient_accumulation_steps=gradient_acumulation,
     output_dir=out_dir,
     run_name=run_name,
     overwrite_output_dir=True,
-    save_strategy='steps',
-    save_steps=0.34,
+    save_strategy='epoch',
     num_train_epochs=train_epochs,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,

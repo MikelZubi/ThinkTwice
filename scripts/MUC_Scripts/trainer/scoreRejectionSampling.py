@@ -120,14 +120,14 @@ completions = []
 
 paths = {}
 #Iterate files in rejectionSampling/dev
-#for file in os.listdir("rejectionSampling/"+split+"/"+str(iteration)+"/"):
-for file in os.listdir("rejectionSampling/"+split):
+#for file in os.listdir("rejectionSampling/"+split):
+for file in os.listdir("rejectionSampling/"+split+"/"+str(iteration)+"/"):
     if file.endswith(".jsonl"):
         #Extract the type and n from the filename
         file_type = "_".join(file.split("_")[:-1])
         #Add the path to the dictionary
-        #paths[file_type] = lambda x, ct=file_type: "rejectionSampling/"+split+"/"+str(iteration)+"/" + ct + "_" + str(x) + ".jsonl"
-        paths[file_type] = lambda x, ct=file_type: "rejectionSampling/"+split+"/" + ct + "_" + str(x) + ".jsonl"
+        paths[file_type] = lambda x, ct=file_type: "rejectionSampling/"+split+"/"+str(iteration)+"/" + ct + "_" + str(x) + ".jsonl"
+        #paths[file_type] = lambda x, ct=file_type: "rejectionSampling/"+split+"/" + ct + "_" + str(x) + ".jsonl"
 
 
 
@@ -146,7 +146,7 @@ for key in paths:
         with open(path, "r") as file:
             for line, gold, id, document in zip(file,ground_truths,ids,documents):
                 data = json.loads(line)
-                f1 = 0.0
+                f1 = -1.0
                 two_empty = False
                 gold_empty = False
                 best_template = []
@@ -158,13 +158,15 @@ for key in paths:
                         completion, ground_truth = postprocess("TST1-MUC3-0001",template,gold)
                         score_result = score(pred_data=completion, ref_data=ground_truth)
                         current_f1 = score_result["iterx_muc_slot_f1"]
-                        if gold == []:
-                            gold_empty = True
+                        #if gold == []:
                         if gold == [] and template == []:
+                            gold_empty = True
                             current_f1 = 1.0
                         if current_f1 > f1:
                             best_template = template
                             f1 = current_f1
+                        if f1 == 0 and template == []:
+                            best_template = template
                         current_f1s.append(current_f1)
                 best_f1s.append(f1)
                 pred_id = str(
@@ -189,8 +191,8 @@ for key in paths:
             print(mean)
             out_list.append([key,n,f1,precision,recall,std,mean])
 
-#out_path = "rejectionSampling/"+split+"/scores_iter"+str(iteration)+".csv"
-out_path = "rejectionSampling/"+split+"/scores.csv"
+out_path = "rejectionSampling/"+split+"/scores_iter"+str(iteration)+".csv"
+#out_path = "rejectionSampling/"+split+"/scores.csv"
 with open(out_path, 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerow(header)

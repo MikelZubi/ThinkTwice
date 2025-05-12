@@ -106,10 +106,9 @@ parser = argparse.ArgumentParser(description='Arguments for the creation of the 
 parser.add_argument('--n', dest='n', type=int,
                     help='The number of best templates to select.')
 parser.add_argument("--iter", dest="iter", type=int)
-parser.add_argument("--read", dest="read", action='str')
+parser.add_argument("--read", dest="read", type=str)
 parser.set_defaults(n=32)
 parser.set_defaults(iter=1)
-parser.set_default()
 n = parser.parse_args().n
 iteration = parser.parse_args().iter
 read = parser.parse_args().read
@@ -148,7 +147,7 @@ with open(path, "r") as file:
         print(len(data["pred_json"]))
         pred_data = []
         for template,reasoning in zip(data["pred_json"],data["pred_reasoning"]):
-            if template != ["ERROR"]:
+            if template != ["ERROR"] and template != [["ERROR"]]:
                 completion, ground_truth = postprocess("TST1-MUC3-0001",template,gold)
                 score_result = score(pred_data=completion, ref_data=ground_truth)
                 current_f1 = score_result["iterx_muc_slot_f1"]
@@ -160,6 +159,9 @@ with open(path, "r") as file:
                 if current_f1 > f1:
                     best_template = template
                     f1 = current_f1
+                if f1 == 0 and template == []:
+                    best_template = template
+                    current_f1 += 0.001
                 current_f1s.append(current_f1)
                 pred_data.append((current_f1, template, reasoning))
 
@@ -173,7 +175,7 @@ with open(path, "r") as file:
         best_templates[pred_id] = {"pred_templates": best_template, "gold_templates": gold}
         selected_values = pred_data[:n]
         for _, template, reasoning in selected_values:
-            if template != ["ERROR"]:
+            if template != ["ERROR"] and template != [["ERROR"]]:
                 post_template = simplify_template(template)
                 length = len(reasoning) + len(post_template)
                 if length > max:
