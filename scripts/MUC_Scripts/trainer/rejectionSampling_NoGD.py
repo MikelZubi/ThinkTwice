@@ -77,14 +77,17 @@ with open(path_read, 'r') as file:
         inputs.append(generate_promt(pre_dict,tokenizer,language,step_prompt))
         pre_dicts.append(pre_dict)
 
-
+if n == 1:
+    temperature = 0.0
+else:
+    temperature = 0.7
 terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]
 result_1 = llm.generate(
     prompt_token_ids=inputs,
     sampling_params=SamplingParams(
-        temperature=0.7, #Recommended value
+        temperature=temperature, #Recommended value
         max_tokens=4000,
         seed=42,
         stop_token_ids=terminators,
@@ -114,7 +117,10 @@ for idx, outputs in enumerate(result_1):
         except:
             post_templates.append(["ERROR"])  # Only if doesn't stop generating, and reach the maximun number of tokens
 
-        pre_dicts[idx]["pred_json"].append(post_templates)
+        if n > 1:
+            pre_dicts[idx]["pred_json"].append(post_templates)
+        else:
+            pre_dicts[idx]["pred_json"] = post_templates
 
 print("Done")
 with open(path_write, 'w') as output_file:

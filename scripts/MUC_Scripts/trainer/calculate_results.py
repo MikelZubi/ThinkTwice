@@ -14,13 +14,16 @@ import typer
 from iterx.metrics.ceaf_rme_cmd_utils import DatasetKind, PredictionFileType, load_predictions, load_metric, \
     load_references, print_prediction_comparison
 from iterx.metrics.muc.ceaf_rme import ScoreFunction
+import os
+import csv
+import glob
 
 
 
 def score(
-        pred_file: Path,
-        ref_file: Path,
-        dataset: Annotated[DatasetKind, typer.Option()],
+        pred_data: Dict,
+        ref_data: List,
+        dataset: Annotated[DatasetKind, typer.Option()] = DatasetKind.MUC,
         ignore_no_template_doc: Annotated[bool, typer.Option(
             help='Whether to ignore documents without any templates during scoring.'
         )] = False,
@@ -35,7 +38,7 @@ def score(
         )] = ScoreFunction.Phi3,
         file_type: Annotated[PredictionFileType, typer.Option(
             help='The type of the prediction file.'
-        )] = PredictionFileType.IterX,
+        )] = PredictionFileType.GTT,
         remove_span_whitespace: Annotated[bool, typer.Option(
 			help='Whether to concatenate all the spans in a mention to form a single span.'
         )] = False,
@@ -45,34 +48,35 @@ def score(
     convert_doc_id = True if file_type == PredictionFileType.GTT and dataset == DatasetKind.MUC else False
     # SciREX postprocessing should have been moved out of the scorer.
     #Honek itten duna ya iñe
-    predictions = load_predictions(pred_file=pred_file,
+    predictions = load_predictions(pred_file=pred_data,
                                    dataset=dataset,
                                    file_type=file_type,
                                    normalize_role=normalize_role,
                                    remove_span_whitespace=remove_span_whitespace,
-                                   scirex_merge_mentions=scirex_merge_mentions)
+                                   scirex_merge_mentions=scirex_merge_mentions,
+                                   compute_metrics=True)
     #print(predictions)
     #print("\n\nSALTO\n\n")
     metric = load_metric(dataset_kind=dataset,
-                         doc_path={str(pred_file): str(ref_file)},
+                         doc_path={"dev": ref_data},
                          ignore_no_template_doc=ignore_no_template_doc,
                          sanitize_special_chars=sanitize_special_chars,
                          scorer_type=scorer,
-                         convert_doc_id=convert_doc_id)
+                         convert_doc_id=convert_doc_id,
+                         compute_metrics=True)
     #print(metric.references)
     metric(
         predictions=predictions,
-        pred_src_file=str(pred_file),
+        pred_src_file="dev",
         dedup=False,
         cluster_substr=False,
         normalize_role=normalize_role
     )
     results = metric.get_metric(reset=True)
-    for k, v in results.items():
-        print(f"{k}: {round(v, 4)}")
-    return results
+    return results 
 
 #PROBA
+'''
 gold_path = "proba_gold.jsonl"
 pred_path = "proba_pred.json"
 results1 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFileType.GTT)
@@ -112,4 +116,94 @@ print("results GRPO JSON: " + str(results4["iterx_muc_slot_f1"]))
 pred_path = "predictions/MUC_simplified_GRPO_Natural_Reasoning/en/greedy.json"
 results4 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFileType.GTT)
 print("results GRPO Natural Reasoning: " + str(results4["iterx_muc_slot_f1"]))
+'''
+
+def calculate_scores_for_directory():
+    gold_path = "multimuc/data/multimuc_v1.0/corrected/en/dev.jsonl"#IDATZI
+    ground_truths = []
+    ids = []
+    documents = []
+    labels = []
+    with open(gold_path, "r") as file:
+        for line in file:
+            data = json.loads(line)
+            ground_truths.append(data["templates"])
+            ids.append(data["docid"])
+            corrected_id = data["docid"]
+            documents.append(data["doctext"])
+            label = {"docid": corrected_id, "templates": data["templates"]}
+            labels.append(label)
+    """
+    Iterate through each file in rejectionSampling/dev/5 directory,
+    calculate scores, and save results to a CSV file.
+    """
+    # Define paths
+    prediction_dir = "rejectionSampling/dev/5"
+    gold_path = "multimuc/data/multimuc_v1.0/corrected/en/dev.jsonl"
+    output_csv = "rejectionSampling/dev/scores_greedy_iter5.csv"
+    
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
+    
+    # Find all prediction files
+    prediction_files = glob.glob(os.path.join(prediction_dir, "*_1.jsonl"))
+    print(prediction_files)
+    # Prepare CSV file
+    with open(output_csv, 'w', newline='') as csvfile:
+        fieldnames = ['file', 'precision', 'recall', 'f1', 'num_errors']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        
+        # Process each prediction file
+        for pred_file in prediction_files:
+            # Skip files that don't end with _1.jsonl
+            file_name = os.path.basename(pred_file)
+            print(f"Processing {file_name}...")
+            predictions = {}
+            count = 0
+            with open(pred_file, 'r') as f:
+                for line in f:
+                    data = json.loads(line)
+                    # Extract the ID from the JSON data
+                    id = data["docid"]
+                    pred_id = str(
+                        int(id.split("-")[0][-1]) * 10000
+                        + int(id.split("-")[-1]))
+                    template = data["pred_json"]
+                    if template == ["ERROR"] or template == [["ERROR"]]:
+                        count += 1
+                        template = []
+                    predictions[pred_id] = {"pred_templates":template,"gold_templates":data["templates"]}
+            # Calculate scores
+            results = score(
+                pred_data=predictions,
+                ref_data=labels
+            )
+            # Extract key metrics
+            precision = results["iterx_muc_slot_p"]
+            recall = results["iterx_muc_slot_r"]
+            f1 = results["iterx_muc_slot_f1"]
+            
+            # Update the fieldnames list to include 'num_errors'
+            if 'num_errors' not in writer.fieldnames:
+                writer.fieldnames.append('num_errors')
+                
+            # Write to CSV including the error count
+            writer.writerow({
+                'file': file_name,
+                'precision': precision,
+                'recall': recall,
+                'f1': f1,
+                'num_errors': count
+            })
+            
+            
+            print(f"Completed {file_name}: F1={round(f1, 4)}")
+            print("Num of errors: " + str(count))
+    
+    print(f"All scores saved to {output_csv}")
+
+# Run the function
+if __name__ == "__main__":
+    calculate_scores_for_directory()
 
