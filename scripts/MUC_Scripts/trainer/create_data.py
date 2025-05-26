@@ -83,12 +83,12 @@ def convert_docid(docid: str) -> str:
 def create_dataset(tokenizer, language, chat=True,reasoning=False,natural_reasoning=False, GRPO=False,cold_start=False, rejectionSampling=False, n=32,splits=["train"]):
 
     datasetdict = {}
-    for split in splits:
+    for split in splits: #TODO: Buelta bat eman honi kode honek funtzionatzen du biño ya ez du zentzue ola ittea
         if rejectionSampling:
-            path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/rejectionSampling/"+split+"_best"+str(n)+".jsonl"
+            path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/rejectionSampling/train_best"+str(n)+".jsonl"
         else:
             path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/"+split+"_simplified_preprocess.jsonl"
-        path_ground_truth = "multimuc/data/multimuc_v1.0/corrected/"+language+"/"+split+".jsonl"
+        path_ground_truth = "multimuc/data/multimuc_v1.0/corrected/"+language+"/train.jsonl"
         #if natural_reasoning:
         #    path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/"+split+"_simplified_CoT.jsonl"
         reasoning_tag = "completion"
@@ -129,5 +129,5 @@ def create_dataset(tokenizer, language, chat=True,reasoning=False,natural_reason
         # Create a Dataset object
         dataset = Dataset.from_dict(data_dict)
         dataset_suffle = dataset.shuffle(seed=42)
-        datasetdict[split] = dataset_suffle
+        datasetdict["train"] = dataset_suffle
     return DatasetDict(datasetdict)

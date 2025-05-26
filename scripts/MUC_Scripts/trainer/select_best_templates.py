@@ -136,6 +136,7 @@ best_f1s = []
 dis = 0
 max = 0
 outputs = []
+out_onlytemp = []
 best_templates = {}
 with open(path, "r") as file:
     for line, gold, id, document in zip(file,ground_truths,ids,documents):
@@ -181,6 +182,12 @@ with open(path, "r") as file:
                 if length > max:
                     max = length
                 outputs.append({"docid": id, "completion": "<think>\n" + reasoning + "</THINK_TOKENA>" + post_template, "doctext": document})
+        if n == 1:
+            for _, template, _ in selected_values:
+                if template != ["ERROR"] and template != [["ERROR"]]:
+                    post_template = simplify_template(template)
+                    print("inserted")
+                    out_onlytemp.append({"docid": id, "templates": post_template, "doctext": document})
 print("Max length: " + str(max))
 values = score(pred_data=best_templates, ref_data=labels)
 print("MAX F1: " + str(values["iterx_muc_slot_f1"]))
@@ -188,3 +195,9 @@ out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/train_bes
 with open(out_path, 'w') as file:
     for line in outputs:
         file.write(json.dumps(line, ensure_ascii=False) + "\n")
+
+if n == 1:
+    out_path = "multimuc/data/multimuc_v1.0/corrected/en/sampled_template_simplified_preprocess.jsonl"
+    with open(out_path, 'w') as file:
+        for line in out_onlytemp:
+            file.write(json.dumps(line, ensure_ascii=False) + "\n")

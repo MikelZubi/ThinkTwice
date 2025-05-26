@@ -11,6 +11,8 @@ sys.path.append("class_data")
 sys.path.append("prompt_library")
 from MUC_Class_simplified import *
 from init import PROMPT_FN
+from copy import deepcopy
+
 
 
 #Argument parser
@@ -21,17 +23,20 @@ parser.add_argument('--language', dest='language', type=str)
 parser.add_argument('--step-prompt', dest='step_prompt', action='store_true')
 parser.add_argument("--model-name", dest='model_name', type=str)
 parser.add_argument("--out-dir", dest="out_dir", type=str)
+parser.add_argument("--add-wait", dest="add_wait", type=int)
 
-parser.set_defaults(model_name="/scratch/ehu_p518_1/ehu_p518_1_1/Ereduak/DeepSeek-R1-Distill-Llama-70B")
+parser.set_defaults(model_name="/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B")
 parser.set_defaults(language="en")
 parser.set_defaults(split="train")
 parser.set_defaults(n=32)
 parser.set_defaults(step_prompt=False)
+parser.set_defaults(add_wait=0)
 
 args = parser.parse_args()
 split = args.split
 language = args.language
 n = args.n
+add_wait = args.add_wait
 
 
 
@@ -76,7 +81,10 @@ with open(path_read, 'r') as file:
         pre_dict = data
         inputs.append(generate_promt(pre_dict,tokenizer,language,step_prompt))
         pre_dicts.append(pre_dict)
-
+if n == 1:
+    temperature = 0.0
+else:
+    temperature = 0.7
 
 terminators = [
     tokenizer.eos_token_id,
@@ -85,7 +93,7 @@ terminators = [
 result_1 = llm.generate(
     prompt_token_ids=inputs,
     sampling_params=SamplingParams(
-        temperature=0.7, #Recommended value
+        temperature=temperature, #Recommended value
         max_tokens=4000,
         seed=42,
         stop_token_ids=terminators,
@@ -93,9 +101,42 @@ result_1 = llm.generate(
     ),
     use_tqdm=True
 )
+#TODO: not implemented for n > 1
+if add_wait >= 1:
+    reasoning = []
+    for i in range(add_wait):
+        new_inputs = []
+        lag_input = deepcopy(inputs)
+        for w, input in enumerate(lag_input):
+            if i == 0:
+                reasoning.append([])
+            for j in range(n):
+                new_input = input + list(result_1[w].outputs[j].token_ids[:-2]) + list(tokenizer.encode(" Wait")[1:])
+                #new_input = input + list(result_1[w].outputs[j].token_ids[:-1]) + [tokenizer.encode("Wait")[1]]
+                new_inputs.append(new_input)
+                if i != 0:
+                    reasoning[w][j] += result_1[w].outputs[j].text + " Wait"
+                else:
+                    reasoning[w].append(result_1[w].outputs[j].text + " Wait")
+        inputs = new_inputs
+        
+
+        result_1 = llm.generate(
+            prompt_token_ids=inputs,
+            sampling_params=SamplingParams(
+                temperature=temperature,
+                max_tokens=2000,
+                stop_token_ids=terminators,
+                n=1
+            ),
+            use_tqdm=True
+        )
 new_inputs = []
 for idx, outputs in enumerate(result_1):
-    pre_dicts[idx]["pred_reasoning"] = [output.text for output in outputs.outputs]
+    if add_wait > 0:
+        pre_dicts[idx]["pred_reasoning"] = [reasoning[idx][j] + output.text for j, output in enumerate(outputs.outputs)]
+    else:
+        pre_dicts[idx]["pred_reasoning"] = [output.text for output in outputs.outputs]
     pre_dicts[idx]["pred_json"] = [None]*n
     for output in outputs.outputs:
         new_inputs.append(inputs[idx] + list(output.token_ids))
@@ -105,7 +146,7 @@ terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]
 
-guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="lm-format-enforcer")
+guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="outlines")
 result_2 = llm.generate(
     prompt_token_ids=new_inputs,
     sampling_params=SamplingParams(
@@ -131,7 +172,10 @@ for idx_n, outputs in enumerate(result_2):
             post_templates.append(post_processed)
     except:
         post_templates.append("ERROR") #Only if doesn't stop generating, and reach the maximun number of tokens
-    pre_dicts[idx]["pred_json"][idx_n % n] = post_templates
+    if n > 1:
+        pre_dicts[idx]["pred_json"][idx_n % n] = post_templates
+    else:
+        pre_dicts[idx]["pred_json"] = post_templates
 
 
 print("Done")

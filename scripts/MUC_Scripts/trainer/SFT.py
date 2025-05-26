@@ -24,6 +24,9 @@ parser.add_argument("--out-dir", dest="out_dir", type=str, default='Model_JSONV2
 parser.add_argument("--model-path", dest="model_path", type=str)
 parser.add_argument("--n", dest="n", type=int)
 parser.add_argument("--lora", dest="lora", action='store_true')
+parser.add_argument("--sampled-template", dest="sampled_template", action='store_true')
+
+
 
 
 
@@ -32,7 +35,7 @@ parser.set_defaults(sampling=False)
 parser.set_defaults(batch_size=2)
 parser.set_defaults(n=32)
 parser.set_defaults(lora=False)
-
+parser.set_defaults(sampled_template=False)
 args = parser.parse_args()
 
 
@@ -52,7 +55,11 @@ tokenizer.pad_token_id = tokenizer.encode(tokenizer.pad_token, add_special_token
 print(tokenizer.pad_token_id)
 print(tokenizer.pad_token)
 tokenizer.model_max_length = max_seq_length
-data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=sampling, n=n)
+if args.sampled_template:
+    splits = ["sampled_template"]
+else:
+    splits = ["train"]
+data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=sampling, n=n, splits=splits)
 
 
 
@@ -129,7 +136,7 @@ else:
     lr = 5e-5
 deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero3.json"
 #train_epochs = (32//n) * 4
-train_epochs = 5
+train_epochs = 10
 config = SFTConfig(
     gradient_accumulation_steps=gradient_acumulation,
     output_dir=out_dir,

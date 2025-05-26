@@ -16,6 +16,7 @@ from iterx.metrics.ceaf_rme_cmd_utils import DatasetKind, PredictionFileType, lo
 from iterx.metrics.muc.ceaf_rme import ScoreFunction
 import os
 import csv
+import argparse
 import glob
 
 
@@ -118,7 +119,7 @@ results4 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFile
 print("results GRPO Natural Reasoning: " + str(results4["iterx_muc_slot_f1"]))
 '''
 
-def calculate_scores_for_directory():
+def calculate_scores_for_directory(read,scorer):
     gold_path = "multimuc/data/multimuc_v1.0/corrected/en/dev.jsonl"#IDATZI
     ground_truths = []
     ids = []
@@ -138,19 +139,20 @@ def calculate_scores_for_directory():
     calculate scores, and save results to a CSV file.
     """
     # Define paths
-    prediction_dir = "rejectionSampling/dev/5"
+    prediction_dir = "rejectionSampling/dev/"+read
     gold_path = "multimuc/data/multimuc_v1.0/corrected/en/dev.jsonl"
-    output_csv = "rejectionSampling/dev/scores_greedy_iter5.csv"
+    output_csv = "rejectionSampling/dev/"+read +".csv"
     
     # Ensure directory exists
     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
     
     # Find all prediction files
-    prediction_files = glob.glob(os.path.join(prediction_dir, "*_1.jsonl"))
+    prediction_files = glob.glob(os.path.join(prediction_dir, "*.jsonl"))
     print(prediction_files)
     # Prepare CSV file
     with open(output_csv, 'w', newline='') as csvfile:
         fieldnames = ['file', 'precision', 'recall', 'f1', 'num_errors']
+        #fieldnames = ['file', 'precision', 'recall', 'f1', "num_errors", "f1_scorer", "precision_scorer", "recall_scorer"]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         
@@ -160,6 +162,7 @@ def calculate_scores_for_directory():
             file_name = os.path.basename(pred_file)
             print(f"Processing {file_name}...")
             predictions = {}
+            #predictions_scorer = {}
             count = 0
             with open(pred_file, 'r') as f:
                 for line in f:
@@ -169,7 +172,10 @@ def calculate_scores_for_directory():
                     pred_id = str(
                         int(id.split("-")[0][-1]) * 10000
                         + int(id.split("-")[-1]))
-                    template = data["pred_json"]
+                    if scorer:
+                        template = data["pred_json_scorer"]
+                    else:
+                        template = data["pred_json"]
                     if template == ["ERROR"] or template == [["ERROR"]]:
                         count += 1
                         template = []
@@ -179,31 +185,71 @@ def calculate_scores_for_directory():
                 pred_data=predictions,
                 ref_data=labels
             )
+            #results_scorer = score(pred_data=predictions_scorer, ref_data=labels)
+
             # Extract key metrics
             precision = results["iterx_muc_slot_p"]
             recall = results["iterx_muc_slot_r"]
             f1 = results["iterx_muc_slot_f1"]
-            
-            # Update the fieldnames list to include 'num_errors'
-            if 'num_errors' not in writer.fieldnames:
-                writer.fieldnames.append('num_errors')
-                
-            # Write to CSV including the error count
-            writer.writerow({
+            row_dict = {
                 'file': file_name,
                 'precision': precision,
                 'recall': recall,
                 'f1': f1,
                 'num_errors': count
-            })
+            }
+            '''
+            # Update the fieldnames list to include 'num_errors'
+            count_w = 0
+            file_w_names = file_name.split("_1.jsonl")[0] + "_1_W*"
+            prediction_file_w = glob.glob(os.path.join(prediction_dir, file_w_names))
+            for file_w in prediction_file_w:            
+                with open(file_w, 'r') as f:
+                    for line in f:
+                        data = json.loads(line)
+                        # Extract the ID from the JSON data
+                        id = data["docid"]
+                        pred_id = str(
+                            int(id.split("-")[0][-1]) * 10000
+                            + int(id.split("-")[-1]))
+                        template = data["pred_json"] #TODO: Kendu
+                        if template == ["ERROR"] or template == [["ERROR"]]:
+                            count_w += 1
+                            template = []
+                        predictions[pred_id] = {"pred_templates":template,"gold_templates":data["templates"]}
+                # Calculate scores
+                results_w = score(
+                    pred_data=predictions,
+                    ref_data=labels
+                )
+                f1_w = results_w["iterx_muc_slot_f1"]
+                file_w_count = file_w.split("_W")[-1][0]
+                w_name = "f1w" + file_w_count
+                row_dict[w_name] = f1_w
+                if w_name not in writer.fieldnames:
+                    writer.fieldnames.append(w_name)
+                
+                if "num_errors_w" not in writer.fieldnames:
+                    writer.fieldnames.append("num_errors_w")
+                row_dict['num_errors_w'] = count_w
+            '''
+                
+            # Write to CSV including the error count
+            writer.writerow(row_dict)
             
             
             print(f"Completed {file_name}: F1={round(f1, 4)}")
-            print("Num of errors: " + str(count))
+            #print(f"Completed {file_name}: {w_name}={round(f1_w, 4)}")
+            print(f"Completed {file_name}: num_errors={count}")
     
     print(f"All scores saved to {output_csv}")
 
 # Run the function
 if __name__ == "__main__":
-    calculate_scores_for_directory()
+    parser = argparse.ArgumentParser(description='Calculate scores for prediction files in a directory')
+    parser.add_argument('--read', type=str, default='results.csv', help='read path and output csv fiename')    
+    parser.add_argument('--scorer', action='store_true', default=False, help='Use pred_json_scorer instead of pred_json')
+
+    args = parser.parse_args()
+    calculate_scores_for_directory(args.read, args.scorer)
 

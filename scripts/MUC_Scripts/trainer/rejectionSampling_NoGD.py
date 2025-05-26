@@ -11,6 +11,7 @@ sys.path.append("class_data")
 sys.path.append("prompt_library")
 from MUC_Class_simplified import *
 from init import PROMPT_FN
+from copy import deepcopy
 
 
 #Argument parser
@@ -21,18 +22,20 @@ parser.add_argument('--language', dest='language', type=str)
 parser.add_argument('--step-prompt', dest='step_prompt', action='store_true')
 parser.add_argument("--model-name", dest='model_name', type=str)
 parser.add_argument("--out-dir", dest="out_dir", type=str)
+parser.add_argument("--add-wait", dest="add_wait", type=int)
 
 parser.set_defaults(model_name="/scratch/ehu_p518_1/ehu_p518_1_1/Ereduak/DeepSeek-R1-Distill-Llama-70B")
 parser.set_defaults(language="en")
 parser.set_defaults(split="train")
 parser.set_defaults(n=32)
 parser.set_defaults(step_prompt=False)
+parser.set_defaults(add_wait=0)
 
 args = parser.parse_args()
 split = args.split
 language = args.language
 n = args.n
-
+add_wait = args.add_wait
 
 
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
@@ -81,9 +84,17 @@ if n == 1:
     temperature = 0.0
 else:
     temperature = 0.7
-terminators = [
-    tokenizer.eos_token_id,
-    tokenizer.convert_tokens_to_ids("<|eot_id|>")]
+
+if add_wait == 0:
+    terminators = [
+        tokenizer.eos_token_id,
+        tokenizer.convert_tokens_to_ids("<|eot_id|>")]
+else:
+    terminators = [
+        tokenizer.eos_token_id,
+        tokenizer.convert_tokens_to_ids("<|eot_id|>"),
+        tokenizer.convert_tokens_to_ids("</think>")
+    ]
 result_1 = llm.generate(
     prompt_token_ids=inputs,
     sampling_params=SamplingParams(
@@ -95,14 +106,56 @@ result_1 = llm.generate(
     ),
     use_tqdm=True
 )
+
+#TODO: not implemented for n > 1
+if add_wait >= 1:
+    reasoning = []
+    for i in range(add_wait):
+        new_inputs = []
+        lag_input = deepcopy(inputs)
+        for w, input in enumerate(lag_input):
+            if i == 0:
+                reasoning.append([])
+            for j in range(n):
+                new_input = input + list(result_1[w].outputs[j].token_ids[:-2]) + list(tokenizer.encode(" Wait")[1:])
+                #new_input = input + list(result_1[w].outputs[j].token_ids[:-1]) + [tokenizer.encode("Wait")[1]]
+                new_inputs.append(new_input)
+                if i != 0:
+                    reasoning[w][j] += result_1[w].outputs[j].text + " Wait"
+                else:
+                    reasoning[w].append(result_1[w].outputs[j].text + " Wait")
+        inputs = new_inputs
+        
+
+        if i == add_wait - 1:
+            terminators = [
+                tokenizer.eos_token_id,
+                tokenizer.convert_tokens_to_ids("<|eot_id|>")]
+        result_1 = llm.generate(
+            prompt_token_ids=inputs,
+            sampling_params=SamplingParams(
+                temperature=temperature,
+                max_tokens=2000,
+                stop_token_ids=terminators,
+                n=1
+            ),
+            use_tqdm=True
+        )
+        
+
+
+
 new_inputs = []
 for idx, outputs in enumerate(result_1):
     pre_dicts[idx]["pred_reasoning"] = []
     pre_dicts[idx]["pred_json"] = []
 
-    for output in outputs.outputs:
+    for j, output in enumerate(outputs.outputs):
         splited_text = output.text.split("</think>")
-        pre_dicts[idx]["pred_reasoning"].append(splited_text[0])
+        if add_wait == 0:
+            pre_dicts[idx]["pred_reasoning"].append(splited_text[0])
+        else:
+            pre_dicts[idx]["pred_reasoning"].append(reasoning[idx][j] + splited_text[0])
         post_templates=[]
         try:
             _ = Base(**json.loads(splited_text[1]))

@@ -2,17 +2,16 @@ from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import GuidedDecodingParams
 import json
-from transformers import set_seed
 import os
 from torch.distributed import destroy_process_group
 import argparse
 
-import sys 
+import sys
 sys.path.append("class_data")
 sys.path.append("prompt_library")
 from MUC_Class_simplified import *
 from init import PROMPT_FN
-
+from copy import deepcopy
 
 
 #Argument parser
@@ -20,42 +19,46 @@ parser = argparse.ArgumentParser(description='Arguments required to the rejectio
 parser.add_argument('--split', dest='split', type=str)
 parser.add_argument('--n', dest='n', type=int)
 parser.add_argument('--language', dest='language', type=str)
+parser.add_argument("--model-name", dest='model_name', type=str)
+parser.add_argument("--out-dir", dest="out_dir", type=str)
+
+parser.set_defaults(model_name="/scratch/ehu_p518_1/ehu_p518_1_1/Ereduak/DeepSeek-R1-Distill-Llama-70B")
 parser.set_defaults(language="en")
 parser.set_defaults(split="train")
 parser.set_defaults(n=32)
-args = parser.parse_args()
+parser.set_defaults(step_prompt=False)
+parser.set_defaults(add_wait=0)
 
+args = parser.parse_args()
+split = args.split
+language = args.language
+n = args.n
 
 
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
 
 
-def generate_prompt(data,tokenizer, language_code):
-    doc = data["doctext"]
+def generate_promt(data,tokenizer,language_code):
     language = LANGUAGE_MAP[language_code]
-    prompt_system = PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language)
-    prompt_user = PROMPT_FN["P_U_MUC_LLAMA_JSON"].format(document=doc)
-    prompt = [{'role': 'system', 'content': prompt_system}]
-    prompt.append({"role":"user","content":prompt_user})
+    prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language)}]
+    prompt.append({"role": "user", "content": PROMPT_FN["P_U_MUC_LLAMA_JSON"].format(document=data["doctext"])})
     prompt_token_ids = tokenizer.apply_chat_template(prompt, add_generation_prompt=True)
     return prompt_token_ids
 
+
 map_field = {"PerpInd": "A person responsible for the incident. (PerpInd)", "PerpOrg": "An organization responsible for the incident. (PerpOrg)", "Target": "An inanimate object that was attacked. (Target)", "Victim": "The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack. (Victim)", "Weapon": "A device used by the perpetrator(s) in carrying out the terrorist act. (Weapon)"}
-split = args.split
-language = args.language
-n = args.n
+
 path_read = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_simplified_preprocess.jsonl"
-path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/rejectionSampling/"+split+"_JSON_"+str(n)+".jsonl"
+path_write = args.out_dir
 if os.path.exists(path_write):
     os.remove(path_write)
 
-
-guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="lm-format-enforcer")
-model_name = "/scratch/ehu_p518_1/ehu_p518_1_1/Ereduak/DeepSeek-R1-Distill-Llama-70B"
-#model_name = "meta-llama/Llama-3.3-70B-Instruct"
+#model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
+#model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B"
+model_name = args.model_name
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-llm = LLM(model=model_name, tensor_parallel_size=4, enforce_eager=True, gpu_memory_utilization=0.90, max_model_len=10000)
+llm = LLM(model=model_name, tensor_parallel_size=4, gpu_memory_utilization=0.90, max_model_len=10000)
 inputs = []
 pre_dicts = []
 
@@ -67,45 +70,54 @@ with open(path_read, 'r') as file:
     for line in file:
         data = json.loads(line)
         pre_dict = data
-        inputs.append(generate_prompt(pre_dict,tokenizer,language))
+        inputs.append(generate_promt(pre_dict,tokenizer,language))
         pre_dicts.append(pre_dict)
 
+if n == 1:
+    temperature = 0.0
+else:
+    temperature = 0.7
 
 terminators = [
     tokenizer.eos_token_id,
-    tokenizer.convert_tokens_to_ids("<|eot_id|>")]  
+    tokenizer.convert_tokens_to_ids("<|eot_id|>")]
 result_1 = llm.generate(
     prompt_token_ids=inputs,
     sampling_params=SamplingParams(
-        temperature=0.7, #Recommended value
-        max_tokens=1000,
+        temperature=temperature, #Recommended value
+        max_tokens=4000,
         seed=42,
         stop_token_ids=terminators,
-        guided_decoding=guided_decoding_params,
         n=n
     ),
     use_tqdm=True
 )
 new_inputs = []
 for idx, outputs in enumerate(result_1):
+    pre_dicts[idx]["pred_reasoning"] = []
     pre_dicts[idx]["pred_json"] = []
-    for output in outputs.outputs:
+
+    for j, output in enumerate(outputs.outputs):
         post_templates = []
         try:
+            _ = Base(**json.loads(output.text))
             for template in json.loads(output.text)["templates"]:
                 post_processed = {}
                 for key in template.keys():
                     if key != "incident_type" and template[key] != []:
-                        post_processed[key]=[[elem] for elem in template[key]]
+                        post_processed[key] = [[elem] for elem in template[key]]
                     else:
-                        post_processed[key]=template[key]
+                        post_processed[key] = template[key]
                 post_templates.append(post_processed)
         except:
-            post_templates.append("ERROR") #Only if doesn't stop generating, and reach the maximun number of tokens
-        pre_dicts[idx]["pred_json"].append(post_templates)
+            post_templates.append(["ERROR"])  # Only if doesn't stop generating, and reach the maximun number of tokens
 
+        if n > 1:
+            pre_dicts[idx]["pred_json"].append(post_templates)
+        else:
+            pre_dicts[idx]["pred_json"] = post_templates
 
-
+print("Done")
 with open(path_write, 'w') as output_file:
     for line in pre_dicts:
         output_file.write(json.dumps(line, ensure_ascii=False) + '\n')
