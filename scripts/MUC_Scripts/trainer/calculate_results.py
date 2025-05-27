@@ -139,15 +139,18 @@ def calculate_scores_for_directory(read,scorer):
     calculate scores, and save results to a CSV file.
     """
     # Define paths
-    prediction_dir = "rejectionSampling/dev/"+read
+    prediction_dir = read
     gold_path = "multimuc/data/multimuc_v1.0/corrected/en/dev.jsonl"
-    output_csv = "rejectionSampling/dev/"+read +".csv"
+    output_csv = read +".csv"
     
     # Ensure directory exists
     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
     
     # Find all prediction files
-    prediction_files = glob.glob(os.path.join(prediction_dir, "*.jsonl"))
+    if not scorer:
+        prediction_files = glob.glob(os.path.join(prediction_dir, "*_1.jsonl"))
+    else:
+        prediction_files = glob.glob(os.path.join(prediction_dir, "*.jsonl"))
     print(prediction_files)
     # Prepare CSV file
     with open(output_csv, 'w', newline='') as csvfile:
@@ -247,7 +250,7 @@ def calculate_scores_for_directory(read,scorer):
 # Run the function
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Calculate scores for prediction files in a directory')
-    parser.add_argument('--read', type=str, default='results.csv', help='read path and output csv fiename')    
+    parser.add_argument('--read', type=str, default='results', help='read path and output csv fiename')    
     parser.add_argument('--scorer', action='store_true', default=False, help='Use pred_json_scorer instead of pred_json')
 
     args = parser.parse_args()

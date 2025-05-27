@@ -99,6 +99,7 @@ for idx, outputs in enumerate(result_1):
 
     for j, output in enumerate(outputs.outputs):
         post_templates = []
+        print(output.text)
         try:
             _ = Base(**json.loads(output.text))
             for template in json.loads(output.text)["templates"]:

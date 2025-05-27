@@ -186,6 +186,7 @@ with open(path, "r") as file:
             for _, template, _ in selected_values:
                 if template != ["ERROR"] and template != [["ERROR"]]:
                     post_template = simplify_template(template)
+                    post_template = json.loads(post_template)
                     print("inserted")
                     out_onlytemp.append({"docid": id, "templates": post_template, "doctext": document})
 print("Max length: " + str(max))
