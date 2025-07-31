@@ -12,7 +12,8 @@ sys.path.append("prompt_library")
 from MUC_Class_simplified import *
 from init import PROMPT_FN
 from copy import deepcopy
-
+from utils import maxCommStr
+import torch
 
 #Argument parser
 parser = argparse.ArgumentParser(description='Arguments required to the rejection sampling')
@@ -21,19 +22,21 @@ parser.add_argument('--n', dest='n', type=int)
 parser.add_argument('--language', dest='language', type=str)
 parser.add_argument("--model-name", dest='model_name', type=str)
 parser.add_argument("--out-dir", dest="out_dir", type=str)
+parser.add_argument("--guided-decoding", dest="guided_decoding", action='store_true')
 
-parser.set_defaults(model_name="/scratch/ehu_p518_1/ehu_p518_1_1/Ereduak/DeepSeek-R1-Distill-Llama-70B")
+parser.set_defaults(model_name="/leonardo_work/EUHPC_E04_042/BaseModels/Llama-3.3-70B-Instruct")
 parser.set_defaults(language="en")
 parser.set_defaults(split="train")
-parser.set_defaults(n=32)
+parser.set_defaults(n=1)
 parser.set_defaults(step_prompt=False)
 parser.set_defaults(add_wait=0)
+parser.set_defaults(guided_decoding=False)
 
 args = parser.parse_args()
 split = args.split
 language = args.language
 n = args.n
-
+guided_decoding = args.guided_decoding
 
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
 
@@ -81,22 +84,37 @@ else:
 terminators = [
     tokenizer.eos_token_id,
     tokenizer.convert_tokens_to_ids("<|eot_id|>")]
-result_1 = llm.generate(
-    prompt_token_ids=inputs,
-    sampling_params=SamplingParams(
-        temperature=temperature, #Recommended value
-        max_tokens=4000,
-        seed=42,
-        stop_token_ids=terminators,
-        n=n
-    ),
-    use_tqdm=True
-)
+if guided_decoding:
+    guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="outlines")
+    result_1 = llm.generate(
+        prompt_token_ids=inputs,
+        sampling_params=SamplingParams(
+            temperature=temperature, #Recommended value
+            max_tokens=4000,
+            seed=42,
+            stop_token_ids=terminators,
+            n=n,
+            guided_decoding=guided_decoding_params
+        ),
+        use_tqdm=True
+    )
+else:
+    result_1 = llm.generate(
+        prompt_token_ids=inputs,
+        sampling_params=SamplingParams(
+            temperature=temperature, #Recommended value
+            max_tokens=4000,
+            seed=42,
+            stop_token_ids=terminators,
+            n=n
+        ),
+        use_tqdm=True
+    )
 new_inputs = []
 for idx, outputs in enumerate(result_1):
     pre_dicts[idx]["pred_reasoning"] = []
     pre_dicts[idx]["pred_json"] = []
-
+    lower_doc = pre_dicts[idx]["doctext"].lower()
     for j, output in enumerate(outputs.outputs):
         post_templates = []
         print(output.text)
@@ -106,7 +124,19 @@ for idx, outputs in enumerate(result_1):
                 post_processed = {}
                 for key in template.keys():
                     if key != "incident_type" and template[key] != []:
-                        post_processed[key] = [[elem] for elem in template[key]]
+                        post_processed[key] = []
+                        for elem in template[key]:
+                            lower_elem = elem.lower()
+                            if lower_elem in lower_doc:
+                                post_processed[key].append([lower_elem])
+                            else:
+                                commn_str = maxCommStr(lower_elem, lower_doc)
+                                if commn_str != "":
+                                    if commn_str[0] == " ":
+                                        commn_str = commn_str[1:]  # Remove leading space
+                                    if commn_str[-1] == " ":
+                                        commn_str = commn_str[:-1]
+                                    post_processed[key].append([commn_str])
                     else:
                         post_processed[key] = template[key]
                 post_templates.append(post_processed)

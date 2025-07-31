@@ -112,17 +112,16 @@ import argparse
 
 #Argument parser
 parser = argparse.ArgumentParser(description='Arguments for the creation of the train dataset')
-parser.add_argument('--n', dest='n', type=int,
-                    help='The number of best templates to select.')
-parser.add_argument("--iter", dest="iter", type=int)
 parser.add_argument("--read", dest="read", type=str)
-parser.set_defaults(n=32)
+parser.add_argument('--split', dest='split', type=str,
+                    help='The split to use for the dataset.')
+parser.set_defaults(dpo=False)
 parser.set_defaults(iter=1)
-n = parser.parse_args().n
-iteration = parser.parse_args().iter
+parser.set_defaults(split="dev")
 read = parser.parse_args().read
+split = parser.parse_args().split
 #READ GOLD
-gold_path = "multimuc/data/multimuc_v1.0/corrected/en/train.jsonl"#IDATZI
+gold_path = "multimuc/data/multimuc_v1.0/corrected/en/"+split+".jsonl"#IDATZI
 ground_truths = []
 ids = []
 documents = []
@@ -140,7 +139,7 @@ with open(gold_path, "r") as file:
 
 completions = []
 out_list = []
-path = "rejectionSampling/train/"+str(iteration)+"/"+read #TODO
+path = read 
 best_f1s = []
 dis = 0
 max = 0
@@ -157,7 +156,7 @@ with open(path, "r") as file:
         gold_empty = False
         current_f1s = []
         pred_data = []
-        for template,reasoning in zip(data["pred_json"],data["pred_reasoning"]):
+        for template in data["pred_json"]:
             if template != ["ERROR"] and template != [["ERROR"]]:
                 #TODO: Filtratu bakarrik incident_type dauketen template-ak
 
@@ -179,41 +178,17 @@ with open(path, "r") as file:
                     best_template = template
                     current_f1 += 0.001
                 current_f1s.append(current_f1)
-                pred_data.append((current_f1, template, reasoning))
+                pred_data.append((current_f1, template))
 
         pred_id = str(
             int(id.split("-")[0][-1]) * 10000
             + int(id.split("-")[-1]))
         print(pred_id)
         pred_data.sort(key=lambda x: x[0], reverse=True)
+        
         best_template = pred_data[0][1]
 
         best_templates[pred_id] = {"pred_templates": best_template, "gold_templates": gold}
-        selected_values = pred_data[:n]
-        for _, template, reasoning in selected_values:
-            if template != ["ERROR"] and template != [["ERROR"]]:
-                post_template = simplify_template(template)
-                length = len(reasoning) + len(post_template)
-                if length > max:
-                    max = length
-                outputs.append({"docid": id, "completion": "<think>\n" + reasoning + "</THINK_TOKENA>" + post_template, "reasoning": "<think>\n" + reasoning + "</THINK_TOKENA>", "template": post_template, "doctext": document})
-        if n == 1:
-            for _, template, _ in selected_values:
-                if template != ["ERROR"] and template != [["ERROR"]]:
-                    post_template = simplify_template(template)
-                    post_template = json.loads(post_template)
-                    print("inserted")
-                    out_onlytemp.append({"docid": id, "templates": post_template, "doctext": document})
-print("Max length: " + str(max))
+
 values = score(pred_data=best_templates, ref_data=labels)
 print("MAX F1: " + str(values["iterx_muc_slot_f1"]))
-out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/train_best"+str(n)+".jsonl"
-with open(out_path, 'w') as file:
-    for line in outputs:
-        file.write(json.dumps(line, ensure_ascii=False) + "\n")
-
-if n == 1:
-    out_path = "multimuc/data/multimuc_v1.0/corrected/en/sampled_template_simplified_preprocess.jsonl"
-    with open(out_path, 'w') as file:
-        for line in out_onlytemp:
-            file.write(json.dumps(line, ensure_ascii=False) + "\n")

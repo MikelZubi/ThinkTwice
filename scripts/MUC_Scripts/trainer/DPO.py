@@ -1,7 +1,7 @@
 #import json
 from create_data import create_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from trl import SFTTrainer, SFTConfig, DataCollatorForCompletionOnlyLM
+from trl import DPOTrainer, DPOConfig #DataCollatorForPreference
 from peft import LoraConfig
 import torch
 from accelerate import PartialState
@@ -12,25 +12,22 @@ import argparse
 
 
 #Argument parser
-parser = argparse.ArgumentParser(description='Arguments required to the SFT trainer')
+parser = argparse.ArgumentParser(description='Arguments required to the DPO trainer')
 #parser.add_argument('--reasoning', dest='reasoning', action='store_true',
 #                    help='Use reasoning.')
 #parser.add_argument('--natural-reasoning', dest='natural_reasoning', action='store_true',
 #                    help='Use natural reasoning, default to artificial.')
-parser.add_argument('--sampling', dest='sampling', action='store_true')
 parser.add_argument('--batch-size', dest="batch_size", type=int)
 parser.add_argument("--base-model", dest="base_model", type=str, default='meta-llama/Meta-Llama-3.1-8B-Instruct')
 parser.add_argument("--out-dir", dest="out_dir", type=str, default='Model_JSONV2')
 parser.add_argument("--model-path", dest="model_path", type=str)
 parser.add_argument("--n", dest="n", type=int)
 parser.add_argument("--lora", dest="lora", action='store_true')
-parser.add_argument("--sampled-template", dest="sampled_template", action='store_true')
 parser.add_argument("--epochs", dest="epochs", type=int)
 
 
 
 
-parser.set_defaults(sampling=False)
 #parser.set_defaults(natural_reasoning=False)
 parser.set_defaults(batch_size=2)
 parser.set_defaults(n=32)
@@ -44,7 +41,6 @@ max_seq_length = 6000
 n = args.n
 modelname = args.base_model
 model_path = args.model_path + modelname
-sampling = args.sampling
 if modelname == "DeepSeek-R1-Distill-Llama-8B":
     chat = False
 else:
@@ -56,11 +52,8 @@ tokenizer.pad_token_id = tokenizer.encode(tokenizer.pad_token, add_special_token
 print(tokenizer.pad_token_id)
 print(tokenizer.pad_token)
 tokenizer.model_max_length = max_seq_length
-if args.sampled_template:
-    splits = ["sampled_template"]
-else:
-    splits = ["train"]
-data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=sampling, n=n, splits=splits)
+splits = ["train"]
+data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=True, DPO=True, n=n, splits=splits)
 
 
 
@@ -73,27 +66,18 @@ elif modelname != "DeepSeek-R1-Distill-Llama-8B":
     response_template = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 else:
     response_template = "<ASSISTANT>"
-#data_collator = DataCollatorForCompletionOnlyLM(response_template=tokenizer.encode(response_template,add_special_tokens=False), instruction_template=instruct_template,tokenizer=tokenizer)
-data_collator = DataCollatorForCompletionOnlyLM(response_template=response_template, tokenizer=tokenizer)
+#data_collator = DataCollatorForPreference(pad_token_id=tokenizer.pad_token_id)
 
 
 batch_size = args.batch_size
 lora = args.lora
 
 
-if sampling:
-
-    out_dir = args.out_dir + "Sampling_" + str(n)
-    run_name = "SFT_Sampling_" + str(n)
-    if lora:
-        out_dir = out_dir + "_LORA"
-        run_name = run_name + "_LORA"
-else:
-    out_dir = args.out_dir + "JSON"
-    run_name = args.out_dir + "SFT_JSON"
-    if lora:
-        out_dir = out_dir + "_LORA"
-        run_name = run_name + "_LORA"
+out_dir = args.out_dir + "Sampling_" + str(n)
+run_name = "DPO_Sampling_" + str(n)
+if lora:
+    out_dir = out_dir + "_LORA"
+    run_name = run_name + "_LORA"
 
 '''
 def preprocess_logits_for_metrics(logits, labels):
@@ -123,7 +107,6 @@ def compute_metrics(eval_preds):
 '''
 
 data_train = data['train']
-print(data["train"][0])
 #gradient_acumulation = 128//(args.batch_size * 4)
 gradient_acumulation = 1
 # Define the trainer
@@ -139,13 +122,14 @@ else:
 deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero3.json"
 #train_epochs = (32//n) * 4
 train_epochs = args.epochs
-config = SFTConfig(
+config = DPOConfig(
     gradient_accumulation_steps=gradient_acumulation,
     output_dir=out_dir,
     run_name=run_name,
     overwrite_output_dir=True,
-    save_strategy='epoch',
-    logging_strategy='epoch',
+    #save_strategy='epoch',
+    save_strategy='steps',
+    save_steps=0.25,
     num_train_epochs=train_epochs,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
@@ -155,12 +139,12 @@ config = SFTConfig(
     report_to='wandb', # 'wandb',
     do_train=True,
     #use_liger=True,
-    max_seq_length=max_seq_length,
+    max_length=max_seq_length,
     deepspeed = deepspeed,
-    packing=False,
+    #packing=False,
     label_names=["labels"],
     gradient_checkpointing=True,
-    #logging_steps=20
+    logging_steps=5
 )
 
 if deepspeed_config() is None:
@@ -176,7 +160,7 @@ model.config.pad_token_id = tokenizer.pad_token_id
 model.config.pad_token = tokenizer.pad_token
 
 
-train = SFTTrainer(
+train = DPOTrainer(
         model=model,
         args=config,
         train_dataset=data_train,
@@ -184,7 +168,7 @@ train = SFTTrainer(
         peft_config=peft_config,
         #compute_metrics=compute_metrics,
         #preprocess_logits_for_metrics = preprocess_logits_for_metrics,
-        data_collator=data_collator,
+        #data_collator=data_collator,
     )
 # Train the model
 train.train()

@@ -8,7 +8,7 @@ file_paths = []
 output_file_paths = []
 languages = ["en","ar", "fa", "ko", "ru", "zh"]
 map_field = {"PerpInd": "A person responsible for the incident. (PerpInd)", "PerpOrg": "An organization responsible for the incident. (PerpOrg)", "Target": "An inanimate object that was attacked. (Target)", "Victim": "The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack. (Victim)", "Weapon": "A device used by the perpetrator(s) in carrying out the terrorist act. (Weapon)"}
-for split in ["dev", "train"]:
+for split in ["test"]:
     for language in languages:
         path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/"+split+".jsonl"
         path_write = "multimuc/data/multimuc_v1.0/corrected/" + language + "/"+split+"_simplified_preprocess.jsonl"
@@ -47,7 +47,7 @@ for i in range(len(file_paths)):
                         new_template[key] = new_slot
                     else:
                         
-                        if template[key] == 'bombing / attack':
+                        if template[key] == 'bombing / attack' or template[key] == 'attack / bombing':
                             template[key] = 'attack'
                             new_template[key] = template[key]
                         incident_types.append(template["incident_type"])
@@ -83,7 +83,8 @@ for i in range(len(file_paths)):
                             reasoning += "and '" + template_raw[key][-1] + "'. "
             pre_incident_types = Incident_Types.model_validate({"incident_types":incident_types})
             pre_template = Base.model_validate({"templates":new_templates})
-            write_data = {"docid": data["docid"],"doctext": " ".join(data["doctext"].split()), "templates": pre_template.model_dump(), "reasoning": reasoning, "incident_types": pre_incident_types.model_dump()}
+            #write_data = {"docid": data["docid"],"doctext": " ".join(data["doctext"].split()), "templates": pre_template.model_dump(), "reasoning": reasoning, "incident_types": pre_incident_types.model_dump()}
+            write_data = {"docid": data["docid"], "doctext": " ".join(data["doctext"].split()), "templates": pre_template.model_dump()}
             with open(output_file_paths[i], 'a') as output_file:
                 output_file.write(json.dumps(write_data, ensure_ascii=False) + '\n')
     print(max)

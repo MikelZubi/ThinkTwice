@@ -119,8 +119,8 @@ results4 = score(pred_path, gold_path, DatasetKind.MUC, file_type=PredictionFile
 print("results GRPO Natural Reasoning: " + str(results4["iterx_muc_slot_f1"]))
 '''
 
-def calculate_scores_for_directory(read,scorer):
-    gold_path = "multimuc/data/multimuc_v1.0/corrected/en/dev.jsonl"#IDATZI
+def calculate_scores_for_directory(read,split,scorer,certainly,voterf1, maxlen, reward):
+    gold_path = "multimuc/data/multimuc_v1.0/corrected/en/"+split+".jsonl"#IDATZI
     ground_truths = []
     ids = []
     documents = []
@@ -140,14 +140,13 @@ def calculate_scores_for_directory(read,scorer):
     """
     # Define paths
     prediction_dir = read
-    gold_path = "multimuc/data/multimuc_v1.0/corrected/en/dev.jsonl"
     output_csv = read +".csv"
     
     # Ensure directory exists
     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
     
     # Find all prediction files
-    if not scorer:
+    if not scorer and not certainly and not voterf1 and not maxlen and not reward:
         prediction_files = glob.glob(os.path.join(prediction_dir, "*_1.jsonl"))
     else:
         prediction_files = glob.glob(os.path.join(prediction_dir, "*.jsonl"))
@@ -177,6 +176,14 @@ def calculate_scores_for_directory(read,scorer):
                         + int(id.split("-")[-1]))
                     if scorer:
                         template = data["pred_json_scorer"]
+                    elif voterf1:
+                        template = data["pred_json_scorerf1"]
+                    elif certainly:
+                        template = data["pred_certainly_json"]
+                    elif maxlen:
+                        template = data["pred_json_maxlen"]
+                    elif reward:
+                        template = data["pred_json_reward"]
                     else:
                         template = data["pred_json"]
                     if template == ["ERROR"] or template == [["ERROR"]]:
@@ -250,9 +257,14 @@ def calculate_scores_for_directory(read,scorer):
 # Run the function
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Calculate scores for prediction files in a directory')
-    parser.add_argument('--read', type=str, default='results', help='read path and output csv fiename')    
-    parser.add_argument('--scorer', action='store_true', default=False, help='Use pred_json_scorer instead of pred_json')
+    parser.add_argument('--read', type=str, default='results', help='read path and output csv fiename') 
+    parser.add_argument('--split', type=str, default='dev', help='split to use for scoring')   
+    parser.add_argument('--voter', action='store_true', default=False, help='Use pred_json_scorer instead of pred_json')
+    parser.add_argument('--voterf1', action='store_true', default=False, help='Use pred_json_scorer instead of pred_json')
+    parser.add_argument('--certainly', action='store_true', default=False, help='Use pred_certainly_json instead of pred_json')
+    parser.add_argument('--maxlen', action='store_true', default=False, help='Use pred_json_maxlen instead of pred_json')
+    parser.add_argument('--reward', action='store_true', default=False, help='Use pred_json_reward instead of pred_json')
 
     args = parser.parse_args()
-    calculate_scores_for_directory(args.read, args.scorer)
+    calculate_scores_for_directory(args.read, args.split, args.voter, args.certainly, args.voterf1, args.maxlen, args.reward)
 

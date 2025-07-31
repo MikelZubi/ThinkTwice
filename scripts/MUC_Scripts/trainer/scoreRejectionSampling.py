@@ -86,9 +86,11 @@ def postprocess(id,pred,label):
 
 parser = argparse.ArgumentParser(description='Arguments required for the scorer')
 parser.add_argument('--split', dest='split', type=str)
-parser.add_argument("--iter", dest='iter', type=int)
+parser.add_argument("--iter", dest='iter', type=str)
+parser.add_argument("--noReasoning", dest='no_reasoning', action='store_true',)
 parser.set_defaults(split="dev")
 parser.set_defaults(iter=1)
+parser.set_defaults(no_reasoning=False)
 args = parser.parse_args()
 split = args.split
 iteration = args.iter
@@ -121,19 +123,20 @@ completions = []
 paths = {}
 #Iterate files in rejectionSampling/dev
 #for file in os.listdir("rejectionSampling/"+split):
-for file in os.listdir("rejectionSampling/"+split+"/"+str(iteration)+"/"):
-    if file.endswith(".jsonl"):
+tag = "rejectionSampling/" if not args.no_reasoning else "NoReasoning/"
+for file in os.listdir(tag+split+"/"+iteration+"/"):
+    if file.endswith("_64.jsonl"):
         #Extract the type and n from the filename
         file_type = "_".join(file.split("_")[:-1])
         #Add the path to the dictionary
-        paths[file_type] = lambda x, ct=file_type: "rejectionSampling/"+split+"/"+str(iteration)+"/" + ct + "_" + str(x) + ".jsonl"
+        paths[file_type] = lambda x, ct=file_type: tag+split+"/"+iteration+"/" + ct + "_" + str(x) + ".jsonl"
         #paths[file_type] = lambda x, ct=file_type: "rejectionSampling/"+split+"/" + ct + "_" + str(x) + ".jsonl"
 
 
 
 header = ["Type","n","F1","Precision","Recall","STD","Mean"]
 out_list = []
-ns = [64]
+ns = [64, 128]
 stds = []
 means = []
 for key in paths:
@@ -191,7 +194,7 @@ for key in paths:
             print(mean)
             out_list.append([key,n,f1,precision,recall,std,mean])
 
-out_path = "rejectionSampling/"+split+"/scores_iter"+str(iteration)+".csv"
+out_path = tag+split+"/scores_iter"+str(iteration)+".csv"
 #out_path = "rejectionSampling/"+split+"/scores.csv"
 with open(out_path, 'w', newline='') as file:
     writer = csv.writer(file)

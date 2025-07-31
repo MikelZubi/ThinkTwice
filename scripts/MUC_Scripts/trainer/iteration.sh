@@ -14,3 +14,4 @@ echo "First job submitted with Job ID: $JOBID"
 # Submit the second job with dependency on the first
 #sbatch --dependency=afterok:$JOBID scripts/MUC_Scripts/trainer/rejectionSampling_models_train.slurm $ITER
 sbatch --dependency=afterok:$JOBID scripts/MUC_Scripts/trainer/rejectionSampling_models_dev.slurm $ITER
+sbatch --dependency=afterok:$JOBID scripts/MUC_Scripts/trainer/rejectionSampling_models_dev1.slurm $ITER

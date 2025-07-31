@@ -12,6 +12,7 @@ sys.path.append("prompt_library")
 from MUC_Class_simplified import *
 from init import PROMPT_FN
 from copy import deepcopy
+from utils import maxCommStr
 
 
 
@@ -161,12 +162,25 @@ result_2 = llm.generate(
 for idx_n, outputs in enumerate(result_2):
     idx = idx_n // n
     post_templates = []
+    lower_doc = pre_dicts[idx]["doctext"].lower()
     try:
         for template in json.loads(outputs.outputs[0].text)["templates"]:
             post_processed = {}
             for key in template.keys():
                 if key != "incident_type" and template[key] != []:
-                    post_processed[key]=[[elem] for elem in template[key]]
+                    post_processed[key] = []
+                    for elem in template[key]:
+                        lower_elem = elem.lower()
+                        if lower_elem in lower_doc:
+                            post_processed[key].append([lower_elem])
+                        else:
+                            commn_str = maxCommStr(lower_elem, lower_doc)
+                            if commn_str != "":
+                                if commn_str[0] == " ":
+                                    commn_str = commn_str[1:]  # Remove leading space
+                                if commn_str[-1] == " ":
+                                    commn_str = commn_str[:-1]
+                                post_processed[key].append([commn_str])
                 else:
                     post_processed[key]=template[key]
             post_templates.append(post_processed)

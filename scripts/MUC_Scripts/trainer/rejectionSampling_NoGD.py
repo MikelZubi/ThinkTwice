@@ -12,7 +12,8 @@ sys.path.append("prompt_library")
 from MUC_Class_simplified import *
 from init import PROMPT_FN
 from copy import deepcopy
-
+import numpy as np
+from utils import maxCommStr
 
 #Argument parser
 parser = argparse.ArgumentParser(description='Arguments required to the rejection sampling')
@@ -23,19 +24,25 @@ parser.add_argument('--step-prompt', dest='step_prompt', action='store_true')
 parser.add_argument("--model-name", dest='model_name', type=str)
 parser.add_argument("--out-dir", dest="out_dir", type=str)
 parser.add_argument("--add-wait", dest="add_wait", type=int)
+parser.add_argument("--logprobs", dest="logprobs", type=int)
+parser.add_argument("--DPO", dest="DPO", action='store_true')
 
-parser.set_defaults(model_name="/scratch/ehu_p518_1/ehu_p518_1_1/Ereduak/DeepSeek-R1-Distill-Llama-70B")
+parser.set_defaults(model_name="/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B")
 parser.set_defaults(language="en")
 parser.set_defaults(split="train")
 parser.set_defaults(n=32)
 parser.set_defaults(step_prompt=False)
 parser.set_defaults(add_wait=0)
+parser.set_defaults(logprobs=None)
+parser.set_defaults(DPO=False)
+
 
 args = parser.parse_args()
 split = args.split
 language = args.language
 n = args.n
 add_wait = args.add_wait
+dpo = args.DPO
 
 
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
@@ -64,8 +71,13 @@ if os.path.exists(path_write):
 #model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B"
 model_name = args.model_name
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
+#with open(model_name + "config.json") as file:
+#    model_config = json.load(file)
+#vocab_size = model_config["vocab_size"]
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-llm = LLM(model=model_name, tensor_parallel_size=4, gpu_memory_utilization=0.90, max_model_len=10000)
+MAX_LOGPROBS = 200
+selection_logrpobs = args.logprobs
+llm = LLM(model=model_name, tensor_parallel_size=4, gpu_memory_utilization=0.90, max_model_len=10000,max_logprobs=MAX_LOGPROBS)
 inputs = []
 pre_dicts = []
 
@@ -102,7 +114,8 @@ result_1 = llm.generate(
         max_tokens=4000,
         seed=42,
         stop_token_ids=terminators,
-        n=n
+        n=n,
+        logprobs=selection_logrpobs
     ),
     use_tqdm=True
 )
@@ -149,25 +162,62 @@ new_inputs = []
 for idx, outputs in enumerate(result_1):
     pre_dicts[idx]["pred_reasoning"] = []
     pre_dicts[idx]["pred_json"] = []
+    pre_dicts[idx]["distr_mean"] = []
+    pre_dicts[idx]["selected_mean"] = []
+    lower_doc = pre_dicts[idx]["doctext"].lower()
 
     for j, output in enumerate(outputs.outputs):
         splited_text = output.text.split("</think>")
         if add_wait == 0:
             pre_dicts[idx]["pred_reasoning"].append(splited_text[0])
+            #Calculate KL using the logprobs:
+            all_logprobs = []
+            logprob_sum = 0.0
+            selected_sum = 0.0
+            if selection_logrpobs is not None:
+                for token in output.logprobs:
+                    selected_token = token[next(iter(token))].logprob
+                    selected_sum += selected_token
+                    for key in token.keys():
+                        logprob = token[key].logprob
+                        logprob_sum += logprob
+                
+                distr_mean = logprob_sum / len(output.logprobs)
+                pre_dicts[idx]["distr_mean"].append(distr_mean)
+                selected_mean = selected_sum / len(output.logprobs)
+                pre_dicts[idx]["selected_mean"].append(selected_mean)
         else:
             pre_dicts[idx]["pred_reasoning"].append(reasoning[idx][j] + splited_text[0])
         post_templates=[]
         try:
-            _ = Base(**json.loads(splited_text[1]))
-            for template in json.loads(splited_text[1])["templates"]:
+            template_text = splited_text[1]
+            if dpo:
+                # If DPO, we need to use the Base class to parse the JSON
+                template_text = template_text.replace("```json", "")
+                template_text = template_text.replace("```", "")
+            _ = Base(**json.loads(template_text))
+            for template in json.loads(template_text)["templates"]:
                 post_processed = {}
                 for key in template.keys():
                     if key != "incident_type" and template[key] != []:
-                        post_processed[key] = [[elem] for elem in template[key]]
+                        post_processed[key] = []
+                        for elem in template[key]:
+                            lower_elem = elem.lower()
+                            if lower_elem in lower_doc:
+                                post_processed[key].append([lower_elem])
+                            else:
+                                commn_str = maxCommStr(lower_elem, lower_doc)
+                                if commn_str != "":
+                                    if commn_str[0] == " ":
+                                        commn_str = commn_str[1:]  # Remove leading space
+                                    if commn_str[-1] == " ":
+                                        commn_str = commn_str[:-1]
+                                    post_processed[key].append([commn_str])
                     else:
                         post_processed[key] = template[key]
                 post_templates.append(post_processed)
         except:
+            print(splited_text[1])
             post_templates.append(["ERROR"])  # Only if doesn't stop generating, and reach the maximun number of tokens
 
         if n > 1:

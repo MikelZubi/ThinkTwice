@@ -1,66 +1,58 @@
 #import json
 from create_data import create_dataset
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from trl import SFTTrainer, SFTConfig, DataCollatorForCompletionOnlyLM
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from trl import RewardTrainer, RewardConfig #DataCollatorForPreference
 from peft import LoraConfig
 import torch
+from datasets import load_from_disk
 from accelerate import PartialState
 #import numpy as np 
 #from utils import *
 from transformers.integrations import HfDeepSpeedConfig, deepspeed_config
 import argparse
-
+def add_margin(row):
+    # Assume you have a score_chosen and score_rejected columns that you want to use to compute the margin
+    return {'margin': row['score_chosen'] - row['score_rejected']}
 
 #Argument parser
-parser = argparse.ArgumentParser(description='Arguments required to the SFT trainer')
+parser = argparse.ArgumentParser(description='Arguments required to the Reward trainer')
 #parser.add_argument('--reasoning', dest='reasoning', action='store_true',
 #                    help='Use reasoning.')
 #parser.add_argument('--natural-reasoning', dest='natural_reasoning', action='store_true',
 #                    help='Use natural reasoning, default to artificial.')
-parser.add_argument('--sampling', dest='sampling', action='store_true')
 parser.add_argument('--batch-size', dest="batch_size", type=int)
 parser.add_argument("--base-model", dest="base_model", type=str, default='meta-llama/Meta-Llama-3.1-8B-Instruct')
 parser.add_argument("--out-dir", dest="out_dir", type=str, default='Model_JSONV2')
 parser.add_argument("--model-path", dest="model_path", type=str)
-parser.add_argument("--n", dest="n", type=int)
 parser.add_argument("--lora", dest="lora", action='store_true')
-parser.add_argument("--sampled-template", dest="sampled_template", action='store_true')
 parser.add_argument("--epochs", dest="epochs", type=int)
 
 
 
 
-parser.set_defaults(sampling=False)
 #parser.set_defaults(natural_reasoning=False)
 parser.set_defaults(batch_size=2)
-parser.set_defaults(n=32)
 parser.set_defaults(lora=False)
 parser.set_defaults(sampled_template=False)
 parser.set_defaults(epochs=10)
 args = parser.parse_args()
 
 
-max_seq_length = 6000
-n = args.n
+max_seq_length = 5000
 modelname = args.base_model
 model_path = args.model_path + modelname
-sampling = args.sampling
 if modelname == "DeepSeek-R1-Distill-Llama-8B":
     chat = False
 else:
     chat = True
 
-tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side='right') #Igual ezkerrean jarri beharko da?
-tokenizer.pad_token = "<|finetune_right_pad_id|>"
-tokenizer.pad_token_id = tokenizer.encode(tokenizer.pad_token, add_special_tokens=False)[0]
-print(tokenizer.pad_token_id)
-print(tokenizer.pad_token)
+tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side = 'left') #Igual ezkerrean jarri beharko da?
 tokenizer.model_max_length = max_seq_length
-if args.sampled_template:
-    splits = ["sampled_template"]
-else:
-    splits = ["train"]
-data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=sampling, n=n, splits=splits)
+splits = ["train"]
+data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=False, Reward=True, n=-1, splits=splits)
+
+
+
 
 
 
@@ -73,27 +65,18 @@ elif modelname != "DeepSeek-R1-Distill-Llama-8B":
     response_template = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 else:
     response_template = "<ASSISTANT>"
-#data_collator = DataCollatorForCompletionOnlyLM(response_template=tokenizer.encode(response_template,add_special_tokens=False), instruction_template=instruct_template,tokenizer=tokenizer)
-data_collator = DataCollatorForCompletionOnlyLM(response_template=response_template, tokenizer=tokenizer)
+#data_collator = DataCollatorForPreference(pad_token_id=tokenizer.pad_token_id)
 
 
 batch_size = args.batch_size
 lora = args.lora
 
 
-if sampling:
-
-    out_dir = args.out_dir + "Sampling_" + str(n)
-    run_name = "SFT_Sampling_" + str(n)
-    if lora:
-        out_dir = out_dir + "_LORA"
-        run_name = run_name + "_LORA"
-else:
-    out_dir = args.out_dir + "JSON"
-    run_name = args.out_dir + "SFT_JSON"
-    if lora:
-        out_dir = out_dir + "_LORA"
-        run_name = run_name + "_LORA"
+out_dir = args.out_dir
+run_name = "Reward_Model_PROBATAKO_OSOA"
+if lora:
+    out_dir = out_dir + "_LORA"
+    run_name = run_name + "_LORA"
 
 '''
 def preprocess_logits_for_metrics(logits, labels):
@@ -123,7 +106,7 @@ def compute_metrics(eval_preds):
 '''
 
 data_train = data['train']
-print(data["train"][0])
+
 #gradient_acumulation = 128//(args.batch_size * 4)
 gradient_acumulation = 1
 # Define the trainer
@@ -135,32 +118,34 @@ if lora:
     lr = 2e-4
 else:
     peft_config = None
-    lr = 5e-5
+    lr = 5e-6
 deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero3.json"
 #train_epochs = (32//n) * 4
 train_epochs = args.epochs
-config = SFTConfig(
+config = RewardConfig(
     gradient_accumulation_steps=gradient_acumulation,
     output_dir=out_dir,
     run_name=run_name,
     overwrite_output_dir=True,
-    save_strategy='epoch',
-    logging_strategy='epoch',
+    #save_strategy='epoch',
+    save_strategy='steps',
+    save_steps=0.25,
     num_train_epochs=train_epochs,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
-    weight_decay=5e-5,
+    weight_decay=0.0,
     learning_rate=lr,
     bf16=True,
     report_to='wandb', # 'wandb',
     do_train=True,
     #use_liger=True,
-    max_seq_length=max_seq_length,
+    max_length=max_seq_length,
     deepspeed = deepspeed,
-    packing=False,
-    label_names=["labels"],
+    #packing=False,
+    #label_names=["labels"],
     gradient_checkpointing=True,
-    #logging_steps=20
+    gradient_checkpointing_kwargs = dict(use_reentrant=False),
+    logging_steps=25
 )
 
 if deepspeed_config() is None:
@@ -170,13 +155,14 @@ if deepspeed_config() is None:
     else:
         raise ValueError("Deepspeed config is not provided.")
 #device_string = PartialState().process_index
-model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
+model = AutoModelForSequenceClassification.from_pretrained(model_path,  num_labels=1,torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
 #model = AutoModelForCausalLM.from_pretrained(modelname, device_map="auto", torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
 model.config.pad_token_id = tokenizer.pad_token_id
 model.config.pad_token = tokenizer.pad_token
 
 
-train = SFTTrainer(
+
+train = RewardTrainer(
         model=model,
         args=config,
         train_dataset=data_train,
@@ -184,7 +170,7 @@ train = SFTTrainer(
         peft_config=peft_config,
         #compute_metrics=compute_metrics,
         #preprocess_logits_for_metrics = preprocess_logits_for_metrics,
-        data_collator=data_collator,
+        #data_collator=data_collator,
     )
 # Train the model
 train.train()
