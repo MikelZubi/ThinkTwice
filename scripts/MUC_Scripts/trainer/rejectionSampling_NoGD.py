@@ -167,6 +167,17 @@ for idx, outputs in enumerate(result_1):
     lower_doc = pre_dicts[idx]["doctext"].lower()
 
     for j, output in enumerate(outputs.outputs):
+        print(output.text)
+        if "</think>" not in output.text:
+            print("ERROR, </think> not found")
+            if n > 1:
+                pre_dicts[idx]["pred_json"].append([["ERROR"]])
+                pre_dicts[idx]["pred_reasoning"].append(output.text)
+            else:
+                pre_dicts[idx]["pred_json"] = [["ERROR"]]
+                pre_dicts[idx]["pred_reasoning"] = output.text
+
+            continue
         splited_text = output.text.split("</think>")
         if add_wait == 0:
             pre_dicts[idx]["pred_reasoning"].append(splited_text[0])

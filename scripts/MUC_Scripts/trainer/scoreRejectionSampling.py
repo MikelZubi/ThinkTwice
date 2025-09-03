@@ -136,7 +136,7 @@ for file in os.listdir(tag+split+"/"+iteration+"/"):
 
 header = ["Type","n","F1","Precision","Recall","STD","Mean"]
 out_list = []
-ns = [64, 128]
+ns = [64]
 stds = []
 means = []
 for key in paths:

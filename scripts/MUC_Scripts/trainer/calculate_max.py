@@ -183,10 +183,16 @@ with open(path, "r") as file:
         pred_id = str(
             int(id.split("-")[0][-1]) * 10000
             + int(id.split("-")[-1]))
-        print(pred_id)
+        #print(pred_id)
         pred_data.sort(key=lambda x: x[0], reverse=True)
         
         best_template = pred_data[0][1]
+        if pred_id == "30565":
+            idx = data["pred_json"].index(best_template)
+            best_reasoning = data["pred_reasoning"][idx]
+            print(best_reasoning)
+            print(best_template)
+            print(gold)
 
         best_templates[pred_id] = {"pred_templates": best_template, "gold_templates": gold}
 

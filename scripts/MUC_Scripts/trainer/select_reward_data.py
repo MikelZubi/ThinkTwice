@@ -97,7 +97,7 @@ def delete_correferences(templates):
             else:
                 new_template[key] = []
                 for element in template[key]:
-                    new_template[key].append([element[0]])
+                    new_template[key].append([element[0][0]])
         new_templates.append(new_template)
     return new_templates
 
@@ -133,6 +133,8 @@ parser.add_argument("--read", dest="read", type=str)
 parser.add_argument("--DPO", dest="DPO", action='store_true')
 parser.add_argument("--reasoning", dest="reasoning", action='store_true',
                     help='Use reasoning.')
+parser.add_argument("--margin", dest="margin", type=float, default=0.5,
+                    help='Margin for the loss function.')
 parser.set_defaults(iter=1)
 parser.set_defaults(DPO=False)
 parser.set_defaults(reasoning=False)
@@ -140,6 +142,7 @@ iteration = parser.parse_args().iter
 read = parser.parse_args().read
 dpo = parser.parse_args().DPO
 include_reasoning = parser.parse_args().reasoning
+margin = parser.parse_args().margin
 #READ GOLD
 gold_path = "multimuc/data/multimuc_v1.0/corrected/en/train.jsonl"#IDATZI
 ground_truths = []
@@ -153,13 +156,15 @@ with open(gold_path, "r") as file:
         ground_truths.append(data["templates"])
         new_id = "".join([data["docid"].split("-")[1], "-"+data["docid"].split("-")[0], "-"+data["docid"].split("-")[2]])
         ids.append(new_id)
-        documents.append(data["doctext"])
+        doctext = " ".join(data["doctext"].split())
+        documents.append(doctext)
         label = {"docid": new_id, "templates": data["templates"]}
         labels.append(label)
 
 completions = []
 out_list = []
-path = "rejectionSampling/train/"+str(iteration)+"/"+read #TODO
+#path = "rejectionSampling/train/"+str(iteration)+"/"+read #TODO
+path = read
 best_f1s = []
 dis = 0
 max = 0
@@ -206,6 +211,8 @@ with open(path, "r") as file:
                 completion, ground_truth = postprocess("TST1-MUC3-0001",simplified_gold,gold)
                 score_result = score(pred_data=completion, ref_data=ground_truth)
                 current_f1 = score_result["iterx_muc_slot_f1"]
+                if gold == simplified_gold:
+                    current_f1 = 1.0
                 pred_data.append((current_f1, simplified_gold, ""))
                 current_templates.append(simplified_gold)
 
@@ -221,10 +228,17 @@ with open(path, "r") as file:
         best_templates[pred_id] = {"pred_templates": best_template, "gold_templates": gold}
         for current_f1, template, reasoning in pred_data:
             for current_f1_2, template_2, reasoning_2 in pred_data:
-                if current_f1 > (current_f1_2 + 0.34):
+                if current_f1 >= (current_f1_2 + margin):
                     post_template = simplify_template(template)
                     post_template_2 = simplify_template(template_2)
                     dif = (current_f1 - current_f1_2) * 3
+                    #Remove <think> and </think> from reasoning
+                    reasoning = reasoning.replace("<think>\n", "")
+                    reasoning_2 = reasoning_2.replace("<think>\n", "")
+                    reasoning = reasoning.replace("</think>\n", "")
+                    reasoning_2 = reasoning_2.replace("</think>\n", "")
+                    reasoning = reasoning.replace("</think>", "")
+                    reasoning_2 = reasoning_2.replace("</think>", "")
                     if dpo:
                         outputs.append({"docid": id, "chosen": "<think>\n" + reasoning + "</THINK_TOKENA>" + post_template, "rejected": "<think>\n" + reasoning_2 + "</THINK_TOKENA>" + post_template_2, "doctext": document, "margin": dif})
                     elif not include_reasoning:
@@ -236,9 +250,9 @@ values = score(pred_data=best_templates, ref_data=labels)
 print("MAX F1: " + str(values["iterx_muc_slot_f1"]))
 print(len(outputs))
 if dpo:
-    out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/DPO.jsonl"
+    out_path = "/leonardo/pub/userexternal/mzubilla/DPO.jsonl"
 else:
-    out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/reward.jsonl"
+    out_path = "/leonardo/pub/userexternal/mzubilla/reward.jsonl"
 with open(out_path, 'w') as file:
     for line in outputs:
         file.write(json.dumps(line, ensure_ascii=False) + "\n")

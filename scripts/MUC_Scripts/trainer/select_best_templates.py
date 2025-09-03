@@ -114,13 +114,16 @@ import argparse
 parser = argparse.ArgumentParser(description='Arguments for the creation of the train dataset')
 parser.add_argument('--n', dest='n', type=int,
                     help='The number of best templates to select.')
-parser.add_argument("--iter", dest="iter", type=int)
+parser.add_argument("--iter", dest="iter", type=str)
 parser.add_argument("--read", dest="read", type=str)
+parser.add_argument("--obtain-reasoning", dest="obtain_reasoning", action="store_true",)
+parser.set_defaults(obtain_reasoning=False)
 parser.set_defaults(n=32)
 parser.set_defaults(iter=1)
 n = parser.parse_args().n
 iteration = parser.parse_args().iter
 read = parser.parse_args().read
+obtain_reasoning = parser.parse_args().obtain_reasoning
 #READ GOLD
 gold_path = "multimuc/data/multimuc_v1.0/corrected/en/train.jsonl"#IDATZI
 ground_truths = []
@@ -134,16 +137,16 @@ with open(gold_path, "r") as file:
         ground_truths.append(data["templates"])
         new_id = "".join([data["docid"].split("-")[1], "-"+data["docid"].split("-")[0], "-"+data["docid"].split("-")[2]])
         ids.append(new_id)
-        documents.append(data["doctext"])
+        doctext = " ".join(data["doctext"].split())
+        documents.append(doctext)
         label = {"docid": new_id, "templates": data["templates"]}
         labels.append(label)
 
 completions = []
 out_list = []
-path = "rejectionSampling/train/"+str(iteration)+"/"+read #TODO
+path = "rejectionSampling/train/"+iteration+"/"+read #TODO
 best_f1s = []
 dis = 0
-max = 0
 outputs = []
 out_onlytemp = []
 best_templates = {}
@@ -190,30 +193,41 @@ with open(path, "r") as file:
 
         best_templates[pred_id] = {"pred_templates": best_template, "gold_templates": gold}
         selected_values = pred_data[:n]
-        for _, template, reasoning in selected_values:
-            if template != ["ERROR"] and template != [["ERROR"]]:
-                post_template = simplify_template(template)
-                length = len(reasoning) + len(post_template)
-                if length > max:
-                    max = length
-                outputs.append({"docid": id, "completion": "<think>\n" + reasoning + "</THINK_TOKENA>" + post_template, "reasoning": "<think>\n" + reasoning + "</THINK_TOKENA>", "template": post_template, "doctext": document})
-        if n == 1:
-            for _, template, _ in selected_values:
+        if not obtain_reasoning:
+            for _, template, reasoning in selected_values:
                 if template != ["ERROR"] and template != [["ERROR"]]:
                     post_template = simplify_template(template)
-                    post_template = json.loads(post_template)
-                    print("inserted")
-                    out_onlytemp.append({"docid": id, "templates": post_template, "doctext": document})
-print("Max length: " + str(max))
+                    outputs.append({"docid": id, "completion": "<think>\n" + reasoning + "</THINK_TOKENA>" + post_template, "doctext": document})
+            if n == 1:
+                for _, template, _ in selected_values:
+                    if template != ["ERROR"] and template != [["ERROR"]]:
+                        post_template = simplify_template(template)
+                        post_template = json.loads(post_template)
+                        print("inserted")
+                        out_onlytemp.append({"docid": id, "templates": post_template, "doctext": document})
+        else:
+            selected_values = pred_data
+            reasonings = []
+            for _, template, reasoning in selected_values:
+                if template != ["ERROR"] and template != [["ERROR"]] and reasoning not in reasonings:
+                    post_template = simplify_template(template)
+                    outputs.append({"docid": id, "reasoning": "<think>\n" + reasoning + "</THINK_TOKENA>", "template": post_template, "doctext": document})
+                    reasonings.append(reasoning)
 values = score(pred_data=best_templates, ref_data=labels)
 print("MAX F1: " + str(values["iterx_muc_slot_f1"]))
-out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/train_best"+str(n)+".jsonl"
-with open(out_path, 'w') as file:
-    for line in outputs:
-        file.write(json.dumps(line, ensure_ascii=False) + "\n")
-
-if n == 1:
-    out_path = "multimuc/data/multimuc_v1.0/corrected/en/sampled_template_simplified_preprocess.jsonl"
+if not obtain_reasoning:
+    out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/train_best"+str(n)+".jsonl"
     with open(out_path, 'w') as file:
-        for line in out_onlytemp:
+        for line in outputs:
+            file.write(json.dumps(line, ensure_ascii=False) + "\n")
+
+    if n == 1:
+        out_path = "multimuc/data/multimuc_v1.0/corrected/en/sampled_template_simplified_preprocess.jsonl"
+        with open(out_path, 'w') as file:
+            for line in out_onlytemp:
+                file.write(json.dumps(line, ensure_ascii=False) + "\n")
+else:
+    out_path = "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/train_obtain_reasoning.jsonl"
+    with open(out_path, 'w') as file:
+        for line in outputs:
             file.write(json.dumps(line, ensure_ascii=False) + "\n")

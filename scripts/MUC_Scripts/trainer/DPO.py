@@ -4,7 +4,6 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from trl import DPOTrainer, DPOConfig #DataCollatorForPreference
 from peft import LoraConfig
 import torch
-from accelerate import PartialState
 #import numpy as np 
 #from utils import *
 from transformers.integrations import HfDeepSpeedConfig, deepspeed_config
@@ -53,10 +52,9 @@ print(tokenizer.pad_token_id)
 print(tokenizer.pad_token)
 tokenizer.model_max_length = max_seq_length
 splits = ["train"]
+print("Creating dataset")
 data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=True, DPO=True, n=n, splits=splits)
-
-
-
+print("Dataset created")
 
 
 instruct_template = "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
@@ -128,8 +126,8 @@ config = DPOConfig(
     run_name=run_name,
     overwrite_output_dir=True,
     #save_strategy='epoch',
-    save_strategy='steps',
-    save_steps=0.25,
+    save_strategy='epoch',
+    #save_steps=0.25,
     num_train_epochs=train_epochs,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
@@ -146,7 +144,7 @@ config = DPOConfig(
     gradient_checkpointing=True,
     logging_steps=5
 )
-
+print("Loading")
 if deepspeed_config() is None:
     deepspeed_config_path = config.deepspeed
     if deepspeed_config_path is not None:

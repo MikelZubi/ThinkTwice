@@ -26,10 +26,12 @@ parser.add_argument("--n", dest="n", type=int)
 parser.add_argument("--lora", dest="lora", action='store_true')
 parser.add_argument("--sampled-template", dest="sampled_template", action='store_true')
 parser.add_argument("--epochs", dest="epochs", type=int)
+parser.add_argument("--obtain-reasoning", dest="obtain_reasoning", action="store_true")
+parser.add_argument("--learning-rate", dest="learning_rate", type=float, default=5e-5)
 
 
 
-
+parser.set_defaults(obtain_reasoning=False)
 parser.set_defaults(sampling=False)
 #parser.set_defaults(natural_reasoning=False)
 parser.set_defaults(batch_size=2)
@@ -40,11 +42,12 @@ parser.set_defaults(epochs=10)
 args = parser.parse_args()
 
 
-max_seq_length = 6000
+max_seq_length = 5000
 n = args.n
 modelname = args.base_model
 model_path = args.model_path + modelname
 sampling = args.sampling
+obtain_reasoning = args.obtain_reasoning
 if modelname == "DeepSeek-R1-Distill-Llama-8B":
     chat = False
 else:
@@ -60,7 +63,7 @@ if args.sampled_template:
     splits = ["sampled_template"]
 else:
     splits = ["train"]
-data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=sampling, n=n, splits=splits)
+data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=sampling, obtain_reasoning=obtain_reasoning, n=n, splits=splits)
 
 
 
@@ -88,7 +91,13 @@ if sampling:
     if lora:
         out_dir = out_dir + "_LORA"
         run_name = run_name + "_LORA"
-else:
+if obtain_reasoning:
+    out_dir = args.out_dir + "Obtain_Reasoning"
+    run_name = args.out_dir + "SFT_Obtain_Reasoning"
+    if lora:
+        out_dir = out_dir + "_LORA"
+        run_name = run_name + "_LORA"
+if not sampling and not obtain_reasoning:
     out_dir = args.out_dir + "JSON"
     run_name = args.out_dir + "SFT_JSON"
     if lora:
@@ -132,10 +141,13 @@ if lora:
         task_type='CAUSAL_LM', inference_mode=False,
         target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj'], r=128, lora_alpha=128
     )
-    lr = 2e-4
+    if args.learning_rate == 5e-5:
+        lr = 2e-4
+    else:
+        lr = args.learning_rate
 else:
     peft_config = None
-    lr = 5e-5
+    lr = args.learning_rate
 deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero3.json"
 #train_epochs = (32//n) * 4
 train_epochs = args.epochs
@@ -154,12 +166,13 @@ config = SFTConfig(
     bf16=True,
     report_to='wandb', # 'wandb',
     do_train=True,
-    #use_liger=True,
+    use_liger_kernel=True,
     max_seq_length=max_seq_length,
     deepspeed = deepspeed,
     packing=False,
     label_names=["labels"],
     gradient_checkpointing=True,
+    #save_steps=0.1,
     #logging_steps=20
 )
 

@@ -3,6 +3,7 @@ from collections import defaultdict
 import json
 import copy as cp
 import sys
+from tqdm import tqdm
 sys.path.append("prompt_library")
 from init import PROMPT_FN
 
@@ -10,8 +11,14 @@ from init import PROMPT_FN
 
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
 
+def generate_completion_DPO(tokenizer,line_dict,tag):
+    prompt = [{"role": "assistant", "content": line_dict[tag]}]
+    chat_prompt = tokenizer.apply_chat_template(prompt, add_generation_prompt=False, tokenize=False)
+    corrected_prompt = chat_prompt.replace("</THINK_TOKENA>", "</think>")
+    return corrected_prompt
 
-def generate_prompt_train(tokenizer, language_code,line_dict,tag,reasoning=False,obtain_reasoning=False):
+
+def generate_prompt_train(tokenizer, language_code,line_dict,tag,reasoning=False,obtain_reasoning=False, reward=False, DPO=False):
     language = LANGUAGE_MAP[language_code]
     if reasoning:
         if obtain_reasoning:
@@ -19,10 +26,15 @@ def generate_prompt_train(tokenizer, language_code,line_dict,tag,reasoning=False
             prompt.append({"role": "assistant", "content": line_dict["reasoning"]})
         else:
             prompt = [{'role': 'user', 'content': PROMPT_FN["P_U_MUC_70BR1_REASONING"].format(language=language, document=line_dict["doctext"])}]
-            prompt.append({"role": "assistant", "content": line_dict[tag]})
+            if not DPO:
+                prompt.append({"role": "assistant", "content": line_dict[tag]})
     else:
-        prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language)}]
-        prompt.append({"role": "user", "content": PROMPT_FN["P_U_MUC_LLAMA_JSON"].format(document=line_dict["doctext"])})
+        if reward:
+            prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON_REWARD"].format(language=language)}]
+            prompt.append({'role': 'user', 'content': PROMPT_FN["P_U_MUC_LLAMA_JSON_REWARD"].format(document=line_dict["doctext"])})
+        else:
+            prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language)}]
+            prompt.append({"role": "user", "content": PROMPT_FN["P_U_MUC_LLAMA_JSON"].format(document=line_dict["doctext"])})
         template_str = json.dumps(line_dict[tag], ensure_ascii=False)
         prompt.append({"role": "assistant", "content": template_str})
     chat_prompt = tokenizer.apply_chat_template(prompt, add_generation_prompt=False, tokenize=False)
@@ -87,15 +99,19 @@ def convert_docid(docid: str) -> str:
     return str(int(docid.split("-")[0][-1]) * 10000 + int(docid.split("-")[-1]))
 '''
 
-def create_dataset(tokenizer, language, chat=True,DPO=False, Reward=False, GRPO=False,cold_start=False, rejectionSampling=False, n=32,splits=["train"]):
+def create_dataset(tokenizer, language, chat=True,DPO=False, Reward=False, GRPO=False,obtain_reasoning=False, rejectionSampling=False, n=32,splits=["train"]):
 
     datasetdict = {}
     for split in splits: #TODO: Buelta bat eman honi kode honek funtzionatzen du biño ya ez du zentzue ola ittea
-        if rejectionSampling or DPO or Reward or GRPO:
+        if rejectionSampling or DPO or Reward or GRPO or obtain_reasoning:
             if DPO:
-                path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/rejectionSampling/DPO.jsonl"
+                #path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/rejectionSampling/DPO.jsonl"
+                path_read = "/leonardo/pub/userexternal/mzubilla/DPO.jsonl"
             elif Reward:
-                path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/rejectionSampling/reward.jsonl"
+                #path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/rejectionSampling/reward.jsonl"
+                path_read = "/leonardo/pub/userexternal/mzubilla/reward.jsonl"
+            elif obtain_reasoning:
+                path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/rejectionSampling/train_obtain_reasoning.jsonl"
             else:
                 path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/rejectionSampling/train_best"+str(n)+".jsonl"
         else:
@@ -116,15 +132,15 @@ def create_dataset(tokenizer, language, chat=True,DPO=False, Reward=False, GRPO=
             with open(path_ground_truth, "r") as file:
                 all_lines_gt = file.readlines() * n
                 
-        for line, line_gt in zip(all_lines, all_lines_gt):
+        for line, line_gt in tqdm(zip(all_lines, all_lines_gt)):
                 line_dict = json.loads(line)
                 #id = convert_docid(line_dict["docid"]) if split == "dev" else line_dict["docid"]
                 id = line_dict["docid"]
                 data_dict["id"].append(id)
                 #if chat:
                     #prompt, init_prompt, completion = generate_prompt_train(tokenizer, language,line_dict,tag=tag,reasoning=reasoning,cold_start=cold_start)
-                if not rejectionSampling and not DPO and not Reward and not GRPO:
-                    prompt = generate_prompt_train(tokenizer, language, line_dict, tag="templates", reasoning=False, cold_start=cold_start)
+                if not rejectionSampling and not DPO and not Reward and not GRPO and not obtain_reasoning:
+                    prompt = generate_prompt_train(tokenizer, language, line_dict, tag="templates", reasoning=False, obtain_reasoning=obtain_reasoning)
                     data_dict["text"].append(prompt)
 
 
@@ -132,27 +148,30 @@ def create_dataset(tokenizer, language, chat=True,DPO=False, Reward=False, GRPO=
                 elif rejectionSampling and not DPO and not Reward:
                     prompt = generate_prompt_train(tokenizer, language, line_dict,
                                                                         tag="completion",
-                                                                        reasoning=rejectionSampling, cold_start=cold_start)
+                                                                        reasoning=rejectionSampling, obtain_reasoning=obtain_reasoning)
                     data_dict["text"].append(prompt)
                 
                 elif DPO and not Reward:
-                    prompt_c = generate_prompt_train(tokenizer, language, line_dict,
-                                                                        tag="chosen",
-                                                                        reasoning=rejectionSampling, cold_start=cold_start)
+                    prompt = generate_prompt_train(tokenizer, language, line_dict,
+                                                                        tag="prompt",
+                                                                        reasoning=rejectionSampling,
+                                                                        DPO=True)
+                    data_dict["prompt"].append(prompt)
+                    prompt_c = generate_completion_DPO(tokenizer, line_dict, tag="chosen")
                     data_dict["chosen"].append(prompt_c)
-                    prompt_r = generate_prompt_train(tokenizer, language, line_dict,
-                                                                        tag="rejected",
-                                                                        reasoning=rejectionSampling, cold_start=cold_start)
+                    prompt_r = generate_completion_DPO(tokenizer, line_dict, tag="rejected")
                     data_dict["rejected"].append(prompt_r)
                     
                 elif Reward:
                     prompt_c = generate_prompt_train(tokenizer, language, line_dict,
                                                                         tag="chosen",
-                                                                        reasoning=rejectionSampling, cold_start=cold_start)
+                                                                        reasoning=rejectionSampling,
+                                                                        reward=True)
                     data_dict["chosen"].append(prompt_c)
                     prompt_r = generate_prompt_train(tokenizer, language, line_dict,
                                                                         tag="rejected",
-                                                                        reasoning=rejectionSampling, cold_start=cold_start)
+                                                                        reasoning=rejectionSampling,
+                                                                        reward=True)
                     data_dict["rejected"].append(prompt_r)
                     data_dict["margin"].append(line_dict["margin"])
                 
