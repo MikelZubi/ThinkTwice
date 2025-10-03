@@ -32,7 +32,7 @@ def score(
         )] = True,
         scorer: Annotated[ScoreFunction, typer.Option(
             help='The scoring function to use.'
-        )] = ScoreFunction.Phi3,
+        )] = ScoreFunction.PhiSubset,
         file_type: Annotated[PredictionFileType, typer.Option(
             help='The type of the prediction file.'
         )] = PredictionFileType.IterX,

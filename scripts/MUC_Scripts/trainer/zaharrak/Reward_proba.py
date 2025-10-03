@@ -4,18 +4,12 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from trl import RewardTrainer, RewardConfig #DataCollatorForPreference
 from peft import LoraConfig
 import torch
-#from accelerate import Accelerator
-#from accelerate.utils import InitProcessGroupKwargs
-#from datetime import timedelta
+from datasets import load_from_disk
+from accelerate import PartialState
 #import numpy as np 
 #from utils import *
 from transformers.integrations import HfDeepSpeedConfig, deepspeed_config
 import argparse
-from datasets import load_from_disk
-from transformers import set_seed
-
-
-
 def add_margin(row):
     # Assume you have a score_chosen and score_rejected columns that you want to use to compute the margin
     return {'margin': row['score_chosen'] - row['score_rejected']}
@@ -32,9 +26,6 @@ parser.add_argument("--out-dir", dest="out_dir", type=str, default='Model_JSONV2
 parser.add_argument("--model-path", dest="model_path", type=str)
 parser.add_argument("--lora", dest="lora", action='store_true')
 parser.add_argument("--epochs", dest="epochs", type=int)
-parser.add_argument("--seed", dest="seed", type=int)
-parser.add_argument("--load-data", dest="load_data", action='store_true')
-parser.add_argument("--guidelines", dest="guidelines", action="store_true")
 
 
 
@@ -44,18 +35,11 @@ parser.set_defaults(batch_size=2)
 parser.set_defaults(lora=False)
 parser.set_defaults(sampled_template=False)
 parser.set_defaults(epochs=10)
-parser.set_defaults(seed=42)
-parser.set_defaults(load_data=False)
-parser.set_defaults(guidelines=False)
 args = parser.parse_args()
-
-#accelerator = Accelerator(InitProcessGroupKwargs(timeout=timedelta(seconds=36000)))
 
 
 max_seq_length = 5000
 modelname = args.base_model
-load_data = args.load_data
-guidelines = args.guidelines
 model_path = args.model_path + modelname
 if modelname == "DeepSeek-R1-Distill-Llama-8B":
     chat = False
@@ -63,16 +47,11 @@ else:
     chat = True
 
 tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side = 'left') #Igual ezkerrean jarri beharko da?
-if "Llama" in modelname:
-    tokenizer.pad_token = "<|finetune_right_pad_id|>"
-    tokenizer.pad_token_id = tokenizer.encode(tokenizer.pad_token, add_special_tokens=False)[0]
 tokenizer.model_max_length = max_seq_length
 splits = ["train"]
+data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=False, Reward=True, n=-1, splits=splits)
 
-if load_data:
-    data = load_from_disk("/leonardo_scratch/large/userexternal/mzubilla/data/reward")
-else:
-    data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=False, Reward=True, n=-1, splits=splits, guidelines=guidelines)
+
 
 
 
@@ -91,12 +70,10 @@ else:
 
 batch_size = args.batch_size
 lora = args.lora
-seed = args.seed
-set_seed(seed)
 
 
 out_dir = args.out_dir
-run_name = "Reward_Model_" +  modelname 
+run_name = "Reward_Model_PROBATAKO_OSOA"
 if lora:
     out_dir = out_dir + "_LORA"
     run_name = run_name + "_LORA"
@@ -129,26 +106,6 @@ def compute_metrics(eval_preds):
 '''
 
 data_train = data['train']
-'''
-# Calculate the maximum sequence length in the training data for both chosen and rejected
-max_length_chosen = 0
-max_length_rejected = 0
-
-for item in data_train:
-    chosen_tokens = tokenizer(item["chosen"], return_tensors="pt", truncation=False)
-    rejected_tokens = tokenizer(item["rejected"], return_tensors="pt", truncation=False)
-    
-    max_length_chosen = max(max_length_chosen, chosen_tokens.input_ids.shape[1])
-    max_length_rejected = max(max_length_rejected, rejected_tokens.input_ids.shape[1])
-
-print(f"Maximum sequence length for chosen samples: {max_length_chosen}")
-print(f"Maximum sequence length for rejected samples: {max_length_rejected}")
-print(f"Overall maximum sequence length: {max(max_length_chosen, max_length_rejected)}")
-
-# Ensure max_seq_length is set appropriately based on findings
-if max(max_length_chosen, max_length_rejected) > max_seq_length:
-    print(f"Warning: Some samples exceed the current max_seq_length of {max_seq_length}")
-'''
 
 #gradient_acumulation = 128//(args.batch_size * 4)
 gradient_acumulation = 1
@@ -161,8 +118,8 @@ if lora:
     lr = 2e-4
 else:
     peft_config = None
-    lr = 2e-5
-deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero2.json"
+    lr = 5e-6
+deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero3.json"
 #train_epochs = (32//n) * 4
 train_epochs = args.epochs
 config = RewardConfig(
@@ -171,26 +128,24 @@ config = RewardConfig(
     run_name=run_name,
     overwrite_output_dir=True,
     #save_strategy='epoch',
-    save_strategy='epoch',
-    logging_strategy='epoch',
+    save_strategy='steps',
+    save_steps=0.25,
     num_train_epochs=train_epochs,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
-    weight_decay=5e-5,
+    weight_decay=0.0,
     learning_rate=lr,
     bf16=True,
     report_to='wandb', # 'wandb',
     do_train=True,
-    #use_liger_kernel=True,
+    #use_liger=True,
     max_length=max_seq_length,
     deepspeed = deepspeed,
     #packing=False,
-    label_names=["labels"],
+    #label_names=["labels"],
     gradient_checkpointing=True,
     gradient_checkpointing_kwargs = dict(use_reentrant=False),
-    seed = seed,
-    #dataset_num_proc=4,
-    #logging_steps=25
+    logging_steps=25
 )
 
 if deepspeed_config() is None:
@@ -200,7 +155,7 @@ if deepspeed_config() is None:
     else:
         raise ValueError("Deepspeed config is not provided.")
 #device_string = PartialState().process_index
-model = AutoModelForSequenceClassification.from_pretrained(model_path,num_labels=1,torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
+model = AutoModelForSequenceClassification.from_pretrained(model_path,  num_labels=1,torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
 #model = AutoModelForCausalLM.from_pretrained(modelname, device_map="auto", torch_dtype= torch.bfloat16, attn_implementation='flash_attention_2')
 model.config.pad_token_id = tokenizer.pad_token_id
 model.config.pad_token = tokenizer.pad_token

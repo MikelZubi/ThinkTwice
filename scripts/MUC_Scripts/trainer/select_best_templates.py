@@ -144,7 +144,8 @@ with open(gold_path, "r") as file:
 
 completions = []
 out_list = []
-path = "rejectionSampling/train/"+iteration+"/"+read #TODO
+#path = "rejectionSampling/train/"+iteration+"/"+read #TODO
+path = read
 best_f1s = []
 dis = 0
 outputs = []

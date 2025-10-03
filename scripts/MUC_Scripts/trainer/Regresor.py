@@ -1,7 +1,7 @@
 #import json
 from create_data import create_dataset
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from trl import RewardTrainer, RewardConfig #DataCollatorForPreference
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
+#from trl import RewardTrainer, RewardConfig #DataCollatorForPreference
 from peft import LoraConfig
 import torch
 #from accelerate import Accelerator
@@ -57,7 +57,7 @@ modelname = args.base_model
 load_data = args.load_data
 guidelines = args.guidelines
 model_path = args.model_path + modelname
-if modelname == "DeepSeek-R1-Distill-Llama-8B":
+if modelname == "DeepSeek-R1-Distill-Llama-8B" or "ModernBERT" in modelname:
     chat = False
 else:
     chat = True
@@ -72,7 +72,7 @@ splits = ["train"]
 if load_data:
     data = load_from_disk("/leonardo_scratch/large/userexternal/mzubilla/data/reward")
 else:
-    data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=False, Reward=True, n=-1, splits=splits, guidelines=guidelines)
+    data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=False, Regresor=True, n=-1, splits=splits, guidelines=guidelines)
 
 
 
@@ -161,18 +161,22 @@ if lora:
     lr = 2e-4
 else:
     peft_config = None
-    lr = 2e-5
-deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero2.json"
+    lr = 5e-5
+if "70B" in modelname:
+    deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero3.json"
+else:
+    deepspeed = "scripts/MUC_Scripts/trainer/config/deepspeed_zero2.json"
 #train_epochs = (32//n) * 4
 train_epochs = args.epochs
-config = RewardConfig(
+config = TrainingArguments(
     gradient_accumulation_steps=gradient_acumulation,
     output_dir=out_dir,
     run_name=run_name,
     overwrite_output_dir=True,
     #save_strategy='epoch',
-    save_strategy='epoch',
-    logging_strategy='epoch',
+    save_strategy='steps',
+    logging_strategy='steps',
+    save_steps=0.1,
     num_train_epochs=train_epochs,
     per_device_train_batch_size=batch_size,
     per_device_eval_batch_size=batch_size,
@@ -182,7 +186,7 @@ config = RewardConfig(
     report_to='wandb', # 'wandb',
     do_train=True,
     #use_liger_kernel=True,
-    max_length=max_seq_length,
+    #max_length=max_seq_length,
     deepspeed = deepspeed,
     #packing=False,
     label_names=["labels"],
@@ -207,12 +211,12 @@ model.config.pad_token = tokenizer.pad_token
 
 
 
-train = RewardTrainer(
+train = Trainer(
         model=model,
         args=config,
         train_dataset=data_train,
         processing_class=tokenizer,
-        peft_config=peft_config,
+        #peft_config=peft_config,
         #compute_metrics=compute_metrics,
         #preprocess_logits_for_metrics = preprocess_logits_for_metrics,
         #data_collator=data_collator,

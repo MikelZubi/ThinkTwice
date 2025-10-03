@@ -10,7 +10,7 @@ Similarly, the database will include incidents of sabotage on a nation's infrast
 
 Also, under certain circumstances, the perpetrator may be a member of the government, including the military. This is the case when the target is civilian.
 
-If an article discusses multiple relevant types of terrorist incidents, each should be recorded in a separate template; however, some articles may not contain any relevant incidents.
+If an article discusses multiple relevant types of terrorist incidents, each should be recorded in a separate template; however, some articles may not contain any relevant incidents. If an article discusses more than one instance of the same relevant type of terrorist incident, each such incident should be captured in a separate template . A "separate instance" is one which has different information about the location, date or perpetrator. 
 
 Incidents fall into the following categories: 'kidnapping,' 'attack,' 'bombing,' 'robbery,' 'arson,' or 'forced work stoppage.' The 'attack' category should only be used when a terrorist incident does not clearly fit into any of the other categories."
 

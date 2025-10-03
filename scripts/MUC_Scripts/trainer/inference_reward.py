@@ -1,5 +1,5 @@
 import torch
-from transformers import AutoTokenizer, LlamaForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import json
 import os
 import argparse
@@ -33,13 +33,22 @@ def simplify_template(templates, gold_template=False):
         new_templates = templates
     return json.dumps(new_templates, ensure_ascii=False)
 
+def generate_prompt_encoder(data,tokenizer,template):
+    simp_template = simplify_template(template,gold_template=False)
+    prompt = "[CLS] \n" + data["doctext"] + "\n [SEP] \n" + simp_template
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    return inputs
 
-def generate_promt(data,tokenizer,language_code,template,gold_template=False):
+def generate_prompt(data,tokenizer,language_code,template,guidelines=False,gold_template=False):
     language = LANGUAGE_MAP[language_code]
-    prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language)}]
-    prompt.append({"role": "user", "content": PROMPT_FN["P_U_MUC_LLAMA_JSON"].format(document=data["doctext"])})
+    if not guidelines:
+        prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON_REWARD"].format(language=language)}]
+        prompt.append({'role': 'user', 'content': PROMPT_FN["P_U_MUC_LLAMA_JSON_REWARD"].format(document=data["doctext"])})
+    else:
+        prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language)}]
+        prompt.append({"role": "user", "content": PROMPT_FN["P_U_MUC_LLAMA_JSON"].format(document=data["doctext"])})
     simp_template = simplify_template(template,gold_template=gold_template)
-    prompt.append({"role": "user", "content": simp_template})
+    prompt.append({"role": "assistant", "content": simp_template})
     prompt_token_ids = tokenizer.apply_chat_template(prompt, add_generation_prompt=False, return_tensors="pt").to("cuda")
     return prompt_token_ids
 
@@ -50,17 +59,20 @@ parser.add_argument('--predict', dest='predict', type=str)
 parser.add_argument('--language', dest='language', type=str)
 parser.add_argument("--model-name", dest='model_name', type=str)
 parser.add_argument("--out-dir", dest="out_dir", type=str)
+parser.add_argument("--guidelines", dest="guidelines", action="store_true")
 
 parser.set_defaults(model_name="/scratch/ehu_p518_1/ehu_p518_1_1/Ereduak/DeepSeek-R1-Distill-Llama-70B")
 parser.set_defaults(language="en")
 parser.set_defaults(split="train")
 parser.set_defaults(n=32)
+parser.set_defaults(guidelines=True)
 
 args = parser.parse_args()
 split = args.split
 language = args.language
 n = args.n
 predict_dir = args.predict
+guidelines = args.guidelines
 
 
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
@@ -79,8 +91,8 @@ if os.path.exists(path_write):
 #model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B"
 model_name = args.model_name
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = LlamaForSequenceClassification.from_pretrained(model_name, num_labels=1,device_map="cuda")
+tokenizer = AutoTokenizer.from_pretrained(model_name) 
+model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=1,device_map="cuda")
 inputs = []
 pre_dicts = []
 
@@ -101,7 +113,10 @@ with open(predict_dir, 'r') as file:
                 templates_list.append(template)
         inputs = []
         for template in templates_list:
-            prompt = generate_promt(pre_dict,tokenizer,language,template)
+            if "BERT" in model_name:
+                prompt = generate_prompt_encoder(pre_dict,tokenizer,template)
+            else:
+                prompt = generate_prompt(pre_dict,tokenizer,language,template,guidelines=guidelines)
             inputs.append(prompt)
         templates_all.append(templates_list)
         inputs_all.append(inputs)
@@ -115,7 +130,10 @@ with torch.no_grad():
         best_template = []
         max_log = float("-inf")
         for inp, temp in zip(inputs, templates):
-            logits = model(inp).logits
+            if "BERT" in model_name:
+                logits = model(**inp).logits
+            else:
+                logits = model(inp).logits
             logits_item = logits.item()
             print("Logits: ", logits_item)
             if logits_item > max_log:

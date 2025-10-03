@@ -2,6 +2,8 @@ from typing import List, Dict
 import json
 import sys
 import numpy as np
+import copy as cp
+from tqdm import tqdm
 
 sys.path.append('multimuc/iterx/src')
 
@@ -28,7 +30,7 @@ def score(
         )] = True,
         scorer: Annotated[ScoreFunction, typer.Option(
             help='The scoring function to use.'
-        )] = ScoreFunction.Phi3,
+        )] = ScoreFunction.PhiSubset,
         file_type: Annotated[PredictionFileType, typer.Option(
             help='The type of the prediction file.'
         )] = PredictionFileType.GTT,
@@ -128,21 +130,11 @@ import argparse
 
 #Argument parser
 parser = argparse.ArgumentParser(description='Arguments for the creation of the train dataset')
-parser.add_argument("--iter", dest="iter", type=int)
 parser.add_argument("--read", dest="read", type=str)
-parser.add_argument("--DPO", dest="DPO", action='store_true')
-parser.add_argument("--reasoning", dest="reasoning", action='store_true',
-                    help='Use reasoning.')
-parser.add_argument("--margin", dest="margin", type=float, default=0.0,
-                    help='Margin for the loss function.')
-parser.set_defaults(iter=1)
-parser.set_defaults(DPO=False)
-parser.set_defaults(reasoning=False)
-iteration = parser.parse_args().iter
+parser.add_argument("--Phi3", dest="Phi3", action='store_true')
+parser.set_defaults(Phi3=False)
 read = parser.parse_args().read
-dpo = parser.parse_args().DPO
-include_reasoning = parser.parse_args().reasoning
-margin = parser.parse_args().margin
+phi3 = parser.parse_args().Phi3
 #READ GOLD
 gold_path = "multimuc/data/multimuc_v1.0/corrected/en/train.jsonl"#IDATZI
 ground_truths = []
@@ -169,90 +161,54 @@ best_f1s = []
 dis = 0
 max = 0
 outputs = []
+if phi3:
+    scorer = ScoreFunction.Phi3
+else:
+    scorer = ScoreFunction.PhiSubset
 out_onlytemp = []
 best_templates = {}
+best_template = {}
 with open(path, "r") as file:
-    for line, gold, id, document in zip(file,ground_truths,ids,documents):
+    for line, gold, id, document in tqdm(zip(file,ground_truths,ids,documents), total=len(ground_truths)):
         data = json.loads(line)
         f1 = 0.0
         two_empty = False
         gold_empty = False
         current_f1s = []
-        print(len(data["pred_json"]))
+        best_f1 = -1.0
         pred_data = []
         current_templates = []
-        for template,reasoning in zip(data["pred_json"],data["pred_reasoning"]):
-            if template != ["ERROR"] and template != [["ERROR"]]:
+        for template in data["pred_json"]:
+            if template != ["ERROR"] and template != [["ERROR"]] and template not in current_templates:
                 #TODO: Filtratu bakarrik incident_type dauketen template-ak
                 completion, ground_truth = postprocess("TST1-MUC3-0001",template,gold)
-                score_result = score(pred_data=completion, ref_data=ground_truth)
+                score_result = score(pred_data=completion, ref_data=ground_truth, scorer=scorer)
                 current_f1 = score_result["iterx_muc_slot_f1"]
-                if gold == []:
-                    gold_empty = True
                 if gold == [] and template == []:
                     current_f1 = 1.0
                 if only_incident_template(template) and template == gold:
                     current_f1 = 1.0
                 if only_incident_template(template) and gold == []:
                     current_f1 = 0.95
-                if current_f1 > f1:
-                    best_template = template
-                    f1 = current_f1
-                if f1 == 0 and template == []:
-                    best_template = template
-                    current_f1 += 0.001
-                current_f1s.append(current_f1)
-                if template not in current_templates:
-                    pred_data.append((current_f1, template, reasoning))
-                    current_templates.append(template)
-        if not include_reasoning and not dpo:
-            simplified_gold = delete_correferences(gold)
-            if simplified_gold not in current_templates:
-                completion, ground_truth = postprocess("TST1-MUC3-0001",simplified_gold,gold)
-                score_result = score(pred_data=completion, ref_data=ground_truth)
-                current_f1 = score_result["iterx_muc_slot_f1"]
-                if gold == simplified_gold:
+                if template == delete_correferences(gold):
                     current_f1 = 1.0
-                pred_data.append((current_f1, simplified_gold, ""))
-                current_templates.append(simplified_gold)
-
-
+                if current_f1 > best_f1:
+                    best_f1 = current_f1
+                current_templates.append(template)
+                post_template = simplify_template(template)
+                outputs.append({"docid": id, "template": post_template, "doctext": document, "score": current_f1 * 100})
+        template = delete_correferences(gold)
         pred_id = str(
-            int(id.split("-")[0][-1]) * 10000
-            + int(id.split("-")[-1]))
-        print(pred_id)
-        pred_data.sort(key=lambda x: x[0], reverse=True)
-        print("diff" + str(pred_data[0][0] - pred_data[-1][0]))
-        best_template = pred_data[0][1]
+                        int(id.split("-")[0][-1]) * 10000
+                        + int(id.split("-")[-1]))
+        best_templates[pred_id] = {"pred_templates":template,"gold_templates":gold}
+        if template not in current_templates and best_f1 < 1.0:
+            post_template = simplify_template(template)
+            outputs.append({"docid": id, "template": post_template, "doctext": document, "score": 1.0})
 
-        best_templates[pred_id] = {"pred_templates": best_template, "gold_templates": gold}
-        for current_f1, template, reasoning in pred_data:
-            for current_f1_2, template_2, reasoning_2 in pred_data:
-                if current_f1 > (current_f1_2 + margin):
-                    post_template = simplify_template(template)
-                    post_template_2 = simplify_template(template_2)
-                    dif = (current_f1 - current_f1_2) * 3
-                    #Remove <think> and </think> from reasoning
-                    reasoning = reasoning.replace("<think>\n", "")
-                    reasoning_2 = reasoning_2.replace("<think>\n", "")
-                    reasoning = reasoning.replace("</think>\n", "")
-                    reasoning_2 = reasoning_2.replace("</think>\n", "")
-                    reasoning = reasoning.replace("</think>", "")
-                    reasoning_2 = reasoning_2.replace("</think>", "")
-                    if dpo:
-                        outputs.append({"docid": id, "chosen": "<think>\n" + reasoning + "</THINK_TOKENA>" + post_template, "rejected": "<think>\n" + reasoning_2 + "</THINK_TOKENA>" + post_template_2, "doctext": document, "margin": dif})
-                    elif not include_reasoning:
-                        outputs.append({"docid": id, "chosen": post_template, "rejected": post_template_2, "doctext": document, "margin": dif})
-                    else:
-                        outputs.append({"docid": id, "chosen": "<think>\n" + reasoning + "</THINK_TOKENA>" + post_template, "rejected": "<think>\n" + reasoning_2 + "</THINK_TOKENA>" + post_template_2, "doctext": document, "margin": dif})
-print("Max length: " + str(max))
-values = score(pred_data=best_templates, ref_data=labels)
-print("MAX F1: " + str(values["iterx_muc_slot_f1"]))
-print(len(outputs))
-if dpo:
-    out_path = "/leonardo/pub/userexternal/mzubilla/DPO.jsonl"
-else:
-    out_path = "/leonardo/pub/userexternal/mzubilla/reward.jsonl"
+max_score = score(pred_data=best_templates, ref_data=labels, scorer=scorer)
+print("Max score train: " + str(max_score["iterx_muc_slot_f1"]))
+out_path = "/leonardo/pub/userexternal/mzubilla/Regresor2.jsonl"
 with open(out_path, 'w') as file:
     for line in outputs:
         file.write(json.dumps(line, ensure_ascii=False) + "\n")
