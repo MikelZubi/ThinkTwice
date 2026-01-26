@@ -2,17 +2,21 @@ from typing import Literal, Optional, Union
 from pydantic import BaseModel, Field, conlist
 
 
-
+#TODO: Span eta event-ei klaseak sartu 
 class span(BaseModel):
     string: str
-    synclass: Optional[Literal['name', 'nominal', 'pronoun', 'event-anchor', 'template-anchor', 'time-mention', 'duration-mention']] = None
+    #string: str = Field(description="Surface text of the mention span as it appears in the source (no normalization).", default=None)
+    synclass: Optional[Literal['name', 'nominal', 'pronoun', 'event-anchor', 'template-anchor', 'time-mention', 'duration-mention']]
+    #synclass: Optional[Literal['name', 'nominal', 'pronoun', 'event-anchor', 'template-anchor', 'time-mention', 'duration-mention']] = Field(description="Syntactic/semantic class of the span: 'name' (proper name), 'nominal' (common noun phrase), 'pronoun', 'event-anchor' (token(s) that evoke the event), 'template-anchor' (trigger for the template), 'time-mention' (date/time expression), or 'duration-mention' (duration expression).", default=None)
 
 class event(BaseModel):
     anchors: span
+    #anchors: span = Field(description="The anchor span that triggers/evokes this event (the event trigger).", default=None)
     event_type : Literal['Aid-Needs', 'Apply-NPI', 'Award-Contract', 'Bribery', 'Business-Event-or-SoA', 'Change-of-Govt', 'Change-Repayment', 'Close-Schools', 'Communicate-Event', 'Conduct-Diplomatic-Talks', 'Conduct-Medical-Research', 'Conduct-Meeting', 'Conduct-Protest', 'Conduct-Violent-Protest', 'Conspiracy', 'Construct-Project', 'Coordinated-Comm', 'Corruption', 'Coup', 'Cull-Livestock', 'Cyber-Crime-Attack', 'Cyber-Crime-Other', 'Cybersecurity-Measure', 'Cybersecurity-Response', 'Death-from-Crisis-Event', 'Declare-Emergency', 'Disease-Exposes', 'Disease-Infects', 'Disease-Kills', 'Disease-Outbreak', 'Disease-Recovery', 'Dismiss-Workers', 'Distribute-PPE', 'Economic-Event-or-SoA', 'Employ-Workers', 'Environmental-Event-or-SoA', 'Establish-Project', 'Evacuate', 'Expel', 'Extortion', 'Famine-Event-or-SoA', 'Financial-Crime', 'Financial-Loss', 'Fiscal-or-Monetary-Action', 'Fund-Project', 'Hospitalize', 'Identify-Vulnerability', 'Illegal-Entry', 'Impose-Quarantine', 'Information-Release', 'Information-Theft', 'Infrastructure-Operation', 'Interrupt-Construction', 'Interrupt-Operations', 'Judicial-Acquit', 'Judicial-Convict', 'Judicial-Indict', 'Judicial-Other', 'Judicial-Plead', 'Judicial-Prosecute', 'Judicial-Seize', 'Judicial-Sentence', 'Kidnapping', 'Law-Enforcement-Arrest', 'Law-Enforcement-Extradite', 'Law-Enforcement-Investigate', 'Law-Enforcement-Other', 'Leave-Job', 'Legislative-Action', 'Lift-PPE-Requirements', 'Lift-Quarantine', 'Loosen-Business-Restrictions', 'Loosen-Travel-Restrictions', 'Make-Repayment', 'Migrant-Detain', 'Migrant-Relocation', 'Migrant-Smuggling', 'Migration-Blocked', 'Migration-Impeded-Failed', 'Military-Attack', 'Military-Declare-War', 'Military-Other', 'Missing-from-Crisis-Event', 'Monitor-Disease', 'Natural-Disaster-Event-or-SoA', 'Natural-Phenomenon-Event-or-SoA', 'Open-Schools', 'Organize-Protest', 'Other-Crime', 'Other-Government-Action', 'Pay-Ransom', 'Persecution', 'Political-Election-Event', 'Political-Event-or-SoA', 'Political-Other', 'Provide-Aid', 'Propose-Project', 'Refugee-Movement', 'Repair', 'Require-PPE', 'Rescue', 'Restrict-Business', 'Restrict-Travel', 'Sign-Agreement', 'Suppress-Communication', 'Suppression-of-Free-Speech', 'Suppress-Meeting', 'Suppress-or-Breakup-Protest', 'Test-Patient', 'Treat-Patient', 'Vaccinate', 'Violence', 'Violence-Attack', 'Violence-Bombing', 'Violence-Damage', 'Violence-Kill', 'Violence-Other', 'Violence-Set-Fire', 'Violence-Wound', 'War-Event-or-SoA', 'Weather-Event-or-SoA', 'Weather-or-Environmental-Damage', 'Wounding-from-Crisis-Event']
+    #event_type : Literal['Aid-Needs', 'Apply-NPI', 'Award-Contract', 'Bribery', 'Business-Event-or-SoA', 'Change-of-Govt', 'Change-Repayment', 'Close-Schools', 'Communicate-Event', 'Conduct-Diplomatic-Talks', 'Conduct-Medical-Research', 'Conduct-Meeting', 'Conduct-Protest', 'Conduct-Violent-Protest', 'Conspiracy', 'Construct-Project', 'Coordinated-Comm', 'Corruption', 'Coup', 'Cull-Livestock', 'Cyber-Crime-Attack', 'Cyber-Crime-Other', 'Cybersecurity-Measure', 'Cybersecurity-Response', 'Death-from-Crisis-Event', 'Declare-Emergency', 'Disease-Exposes', 'Disease-Infects', 'Disease-Kills', 'Disease-Outbreak', 'Disease-Recovery', 'Dismiss-Workers', 'Distribute-PPE', 'Economic-Event-or-SoA', 'Employ-Workers', 'Environmental-Event-or-SoA', 'Establish-Project', 'Evacuate', 'Expel', 'Extortion', 'Famine-Event-or-SoA', 'Financial-Crime', 'Financial-Loss', 'Fiscal-or-Monetary-Action', 'Fund-Project', 'Hospitalize', 'Identify-Vulnerability', 'Illegal-Entry', 'Impose-Quarantine', 'Information-Release', 'Information-Theft', 'Infrastructure-Operation', 'Interrupt-Construction', 'Interrupt-Operations', 'Judicial-Acquit', 'Judicial-Convict', 'Judicial-Indict', 'Judicial-Other', 'Judicial-Plead', 'Judicial-Prosecute', 'Judicial-Seize', 'Judicial-Sentence', 'Kidnapping', 'Law-Enforcement-Arrest', 'Law-Enforcement-Extradite', 'Law-Enforcement-Investigate', 'Law-Enforcement-Other', 'Leave-Job', 'Legislative-Action', 'Lift-PPE-Requirements', 'Lift-Quarantine', 'Loosen-Business-Restrictions', 'Loosen-Travel-Restrictions', 'Make-Repayment', 'Migrant-Detain', 'Migrant-Relocation', 'Migrant-Smuggling', 'Migration-Blocked', 'Migration-Impeded-Failed', 'Military-Attack', 'Military-Declare-War', 'Military-Other', 'Missing-from-Crisis-Event', 'Monitor-Disease', 'Natural-Disaster-Event-or-SoA', 'Natural-Phenomenon-Event-or-SoA', 'Open-Schools', 'Organize-Protest', 'Other-Crime', 'Other-Government-Action', 'Pay-Ransom', 'Persecution', 'Political-Election-Event', 'Political-Event-or-SoA', 'Political-Other', 'Provide-Aid', 'Propose-Project', 'Refugee-Movement', 'Repair', 'Require-PPE', 'Rescue', 'Restrict-Business', 'Restrict-Travel', 'Sign-Agreement', 'Suppress-Communication', 'Suppression-of-Free-Speech', 'Suppress-Meeting', 'Suppress-or-Breakup-Protest', 'Test-Patient', 'Treat-Patient', 'Vaccinate', 'Violence', 'Violence-Attack', 'Violence-Bombing', 'Violence-Damage', 'Violence-Kill', 'Violence-Other', 'Violence-Set-Fire', 'Violence-Wound', 'War-Event-or-SoA', 'Weather-Event-or-SoA', 'Weather-or-Environmental-Damage', 'Wounding-from-Crisis-Event'] = Field(description="Canonical BETTER granular event type label for this event instance.", default=None)
 
 class Protestplate(BaseModel):
-    template_type: Literal["Protestplate"] = "Protestplate"
+    template_type: Literal["Protestplate"]
     arrested: Optional[list[span]] = Field(
         description='Description or count of those arrested.',
         default=None)
@@ -68,7 +72,7 @@ class Protestplate(BaseModel):
 
 
 class Corruplate(BaseModel):
-    template_type: Literal["Corruplate"] = "Corruplate"
+    template_type: Literal["Corruplate"]
     charged_with: Optional[list[span|event]] = Field(
         description='The crimes that the individual has been charged with, coded as Basic events “[patient Uyukaeve] had been caught accepting the [event bribe]”',
         default=None)
@@ -108,7 +112,7 @@ class Corruplate(BaseModel):
 
 
 class Terrorplate(BaseModel):
-    template_type: Literal["Terrorplate"] = "Terrorplate"
+    template_type: Literal["Terrorplate"]
     blamed_by: Optional[list[span]] = Field(
         description='Those who are asserting the identity of the perpetrators.',
         default=None) 
@@ -191,7 +195,7 @@ class Terrorplate(BaseModel):
 
 
 class Epidemiplate(BaseModel):
-    template_type: Literal["Epidemiplate"] = "Epidemiplate"
+    template_type: Literal["Epidemiplate"]
     disease: Optional[list[span]] = Field(
         description='Mentions of the disease that is at the heart of the outbreak',
         default=None)
@@ -278,7 +282,7 @@ class Epidemiplate(BaseModel):
 
 
 class Disasterplate(BaseModel):
-    template_type: Literal["Disasterplate"] = "Disasterplate"
+    template_type: Literal["Disasterplate"]
     major_disaster_event: Optional[list[span|event]] = Field(
         description='Holds instances of Environmental, Natural Phenomenon, or Famine events (or SoAs), or also Weather/Environmental damage events. Can be considered to serve as triggers.',
         default=None) #Unscored
@@ -353,7 +357,7 @@ class Disasterplate(BaseModel):
 
 
 class Displacementplate(BaseModel):
-    template_type: Literal["Displacementplate"] = "Displacementplate"
+    template_type: Literal["Displacementplate"]
     human_displacement_event: Optional[list[event]] = Field(
         description='Holds event anchors typically associated with human displacement -primarily refugee- movement events. Can be considered to serve as triggers.',
         default=None) #Unscored

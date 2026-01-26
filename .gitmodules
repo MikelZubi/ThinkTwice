@@ -1,0 +1,3 @@
+[submodule "multimuc"]
+	path = multimuc
+	url = https://github.com/wgantt/multimuc

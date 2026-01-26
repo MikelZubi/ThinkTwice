@@ -34,9 +34,8 @@ def simplify_template(templates, gold_template=False):
     return json.dumps(new_templates, ensure_ascii=False)
 
 def generate_prompt_encoder(data,tokenizer,template):
-    simp_template = simplify_template(template,gold_template=False)
-    prompt = "[CLS] \n" + data["doctext"] + "\n [SEP] \n" + simp_template
-    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    prompt = "[CLS] \n" + data["doctext"] + "\n [SEP] \n" + template
+    inputs = tokenizer(prompt).to("cuda")
     return inputs
 
 def generate_prompt(data,tokenizer,language_code,template,guidelines=False,gold_template=False):
@@ -130,10 +129,7 @@ with torch.no_grad():
         best_template = []
         max_log = float("-inf")
         for inp, temp in zip(inputs, templates):
-            if "BERT" in model_name:
-                logits = model(**inp).logits
-            else:
-                logits = model(inp).logits
+            logits = model(inp).logits
             logits_item = logits.item()
             print("Logits: ", logits_item)
             if logits_item > max_log:

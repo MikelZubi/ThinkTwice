@@ -208,7 +208,7 @@ with open(path, "r") as file:
 
 max_score = score(pred_data=best_templates, ref_data=labels, scorer=scorer)
 print("Max score train: " + str(max_score["iterx_muc_slot_f1"]))
-out_path = "/leonardo/pub/userexternal/mzubilla/Regresor2.jsonl"
+out_path = "/leonardo/pub/userexternal/mzubilla/Regresor.jsonl"
 with open(out_path, 'w') as file:
     for line in outputs:
         file.write(json.dumps(line, ensure_ascii=False) + "\n")

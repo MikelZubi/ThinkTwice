@@ -17,24 +17,40 @@ def generate_completion_DPO(tokenizer,line_dict,tag):
     corrected_prompt = chat_prompt.replace("</THINK_TOKENA>", "</think>")
     return corrected_prompt
 
-
-def generate_prompt_train(tokenizer, language_code,line_dict,tag,reasoning=False,obtain_reasoning=False, guidelines=False, DPO=False, tokenize=False):
+#TODO: prompt, completion modun jarri behar da ze hf-koak sunormalak die ta gauzek deprecated utzi beharren kendu itten dittue.
+def generate_prompt_train(tokenizer, language_code,line_dict,modelname,tag,reasoning=False,obtain_reasoning=False, guidelines=False, DPO=False, tokenize=False, prompt_completion=False):
     language = LANGUAGE_MAP[language_code]
     if reasoning:
         if obtain_reasoning:
             prompt = [{'role': 'system', 'content': PROMPT_FN["P_U_MUC_70BR1_OBTAIN_REASONING"].format(language=language, document=line_dict["doctext"], template=line_dict["template"])}]
             prompt.append({"role": "assistant", "content": line_dict["reasoning"]})
         else:
-            prompt = [{'role': 'user', 'content': PROMPT_FN["P_U_MUC_70BR1_REASONING"].format(language=language, document=line_dict["doctext"])}]
+            if "Qwen" in modelname:
+                system_prompt = PROMPT_FN["P_S_MUC_QWEN_JSON"].format(language=language)
+                prompt = [{'role': 'system', 'content': system_prompt}]
+                user_prompt = PROMPT_FN["P_U_MUC_QWEN_JSON"].format(language=language,
+                                                                                     document=line_dict["doctext"])
+                prompt.append({'role': 'user', 'content': user_prompt})
+                text_prompt = tokenizer.apply_chat_template(prompt, add_generation_prompt=False, tokenize=False)
+            else:
+                prompt = [{'role': 'user', 'content': PROMPT_FN["P_U_MUC_70BR1_REASONING"].format(language=language, document=line_dict["doctext"])}]
             if not DPO:
-                prompt.append({"role": "assistant", "content": line_dict[tag]})
-    else:
+                completion = [{"role": "assistant", "content": line_dict[tag]}]
+                text_completion = tokenizer.apply_chat_template(completion, add_generation_prompt=False, tokenize=False)
+                corrected_completion = text_completion.replace("</THINK_TOKENA>", "</think>")
+                return text_prompt, corrected_completion
+    else: #TODO: Bestek debai txukundu beharko die
         if not guidelines:
             prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON_REWARD"].format(language=language)}]
             prompt.append({'role': 'user', 'content': PROMPT_FN["P_U_MUC_LLAMA_JSON_REWARD"].format(document=line_dict["doctext"])})
         else:
             prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language)}]
             prompt.append({"role": "user", "content": PROMPT_FN["P_U_MUC_LLAMA_JSON"].format(document=line_dict["doctext"])})
+        if prompt_completion:
+            completion = [{"role": "assistant", "content": json.dumps(line_dict[tag], ensure_ascii=False)}]
+            text_prompt = tokenizer.apply_chat_template(prompt, add_generation_prompt=False, tokenize=False)
+            text_completion = tokenizer.apply_chat_template(completion, add_generation_prompt=False, tokenize=False)
+            return text_prompt, text_completion
         template_str = json.dumps(line_dict[tag], ensure_ascii=False)
         prompt.append({"role": "assistant", "content": template_str})
     chat_prompt = tokenizer.apply_chat_template(prompt, add_generation_prompt=False, tokenize=False)
@@ -98,7 +114,7 @@ def convert_docid(docid: str) -> str:
     return str(int(docid.split("-")[0][-1]) * 10000 + int(docid.split("-")[-1]))
 '''
 
-def create_dataset(tokenizer, language, chat=True,DPO=False, Reward=False, Regresor=False,GRPO=False,obtain_reasoning=False, rejectionSampling=False, n=32,splits=["train"],tokenize=False,guidelines=False):
+def create_dataset(tokenizer, language, modelname,chat=True,DPO=False, Reward=False, Regresor=False,GRPO=False,obtain_reasoning=False, rejectionSampling=False, n=32,splits=["train"],tokenize=False,guidelines=False):
 
     datasetdict = {}
     for split in splits: #TODO: Buelta bat eman honi kode honek funtzionatzen du biño ya ez du zentzue ola ittea
@@ -108,7 +124,7 @@ def create_dataset(tokenizer, language, chat=True,DPO=False, Reward=False, Regre
                 path_read = "/leonardo/pub/userexternal/mzubilla/DPO.jsonl"
             elif Reward:
                 #path_read = "multimuc/data/multimuc_v1.0/corrected/"+language+"/rejectionSampling/reward.jsonl"
-                path_read = "/leonardo/pub/userexternal/mzubilla/reward.jsonl"
+                path_read = "/scratch/ehu_p518_1/ehu_p518_1_1/data/raw/reward.jsonl"
             elif Regresor:
                 path_read = "/leonardo/pub/userexternal/mzubilla/Regresor.jsonl"
             elif obtain_reasoning:
@@ -141,19 +157,25 @@ def create_dataset(tokenizer, language, chat=True,DPO=False, Reward=False, Regre
                 #if chat:
                     #prompt, init_prompt, completion = generate_prompt_train(tokenizer, language,line_dict,tag=tag,reasoning=reasoning,cold_start=cold_start)
                 if not rejectionSampling and not DPO and not Reward and not GRPO and not obtain_reasoning and not Regresor:
-                    prompt = generate_prompt_train(tokenizer, language, line_dict, tag="templates", reasoning=False, guidelines=True,obtain_reasoning=obtain_reasoning)
-                    data_dict["text"].append(prompt)
+                    #prompt = generate_prompt_train(tokenizer, language, line_dict, modelname, tag="templates", reasoning=False, guidelines=True,obtain_reasoning=obtain_reasoning)
+                    #data_dict["text"].append(prompt)
+                    prompt, completion = generate_prompt_train(tokenizer, language, line_dict, modelname,
+                                                                        tag="templates",
+                                                                        reasoning=False, obtain_reasoning=obtain_reasoning, guidelines=True,prompt_completion=True)
+                    data_dict["prompt"].append(prompt)
+                    data_dict["completion"].append(completion)
 
 
 
                 elif rejectionSampling and not DPO and not Reward:
-                    prompt = generate_prompt_train(tokenizer, language, line_dict,
+                    prompt, completion = generate_prompt_train(tokenizer, language, line_dict, modelname,
                                                                         tag="completion",
                                                                         reasoning=rejectionSampling, obtain_reasoning=obtain_reasoning)
-                    data_dict["text"].append(prompt)
+                    data_dict["prompt"].append(prompt)
+                    data_dict["completion"].append(completion)
                 
                 elif DPO and not Reward:
-                    prompt = generate_prompt_train(tokenizer, language, line_dict,
+                    prompt = generate_prompt_train(tokenizer, language, line_dict, modelname,
                                                                         tag="prompt",
                                                                         reasoning=rejectionSampling,
                                                                         DPO=True)
@@ -165,32 +187,22 @@ def create_dataset(tokenizer, language, chat=True,DPO=False, Reward=False, Regre
                     
                 elif Reward:
                     if tokenize:
-                        if chat == True:
-                            prompt_c = generate_prompt_train(tokenizer, language, line_dict,
-                                                                            tag="chosen",
-                                                                            reasoning=rejectionSampling,
-                                                                            guidelines=guidelines,
-                                                                            tokenize=True)
-                            data_dict["input_ids_chosen"].append(prompt_c["input_ids"])
-                            data_dict["attention_mask_chosen"].append(prompt_c["attention_mask"])
-                            prompt_r = generate_prompt_train(tokenizer, language, line_dict,
-                                                                            tag="rejected",
-                                                                            reasoning=rejectionSampling,
-                                                                            guidelines=guidelines,
-                                                                            tokenize=True)
-                            data_dict["input_ids_rejected"].append(prompt_r["input_ids"])
-                            data_dict["attention_mask_rejected"].append(prompt_r["attention_mask"])
-                        else:
-                            prompt_c = generate_text_train(tokenizer, line_dict,
-                                                            tag="chosen")
-                            data_dict["input_ids_chosen"].append(prompt_c["input_ids"])
-                            data_dict["attention_mask_chosen"].append(prompt_c["attention_mask"])
-                            prompt_r = generate_text_train(tokenizer, line_dict,
-                                                            tag="rejected")
-                            data_dict["input_ids_rejected"].append(prompt_r["input_ids"])
-                            data_dict["attention_mask_rejected"].append(prompt_r["attention_mask"])
+                        prompt_c = generate_prompt_train(tokenizer, language, line_dict, modelname,
+                                                                        tag="chosen",
+                                                                        reasoning=rejectionSampling,
+                                                                        guidelines=guidelines,
+                                                                        tokenize=True)
+                        data_dict["input_ids_chosen"].append(prompt_c["input_ids"])
+                        data_dict["attention_mask_chosen"].append(prompt_c["attention_mask"])
+                        prompt_r = generate_prompt_train(tokenizer, language, line_dict, modelname,
+                                                                        tag="rejected",
+                                                                        reasoning=rejectionSampling,
+                                                                        guidelines=guidelines,
+                                                                        tokenize=True)
+                        data_dict["input_ids_rejected"].append(prompt_r["input_ids"])
+                        data_dict["attention_mask_rejected"].append(prompt_r["attention_mask"])
                     else:
-                        prompt_c = generate_prompt_train(tokenizer, language, line_dict,
+                        prompt_c = generate_prompt_train(tokenizer, language, line_dict, modelname,
                                                                             tag="chosen",
                                                                             reasoning=rejectionSampling,
                                                                             reward=True)
@@ -203,7 +215,7 @@ def create_dataset(tokenizer, language, chat=True,DPO=False, Reward=False, Regre
                         data_dict["margin"].append(line_dict["margin"])
                 elif Regresor:
                     if chat == True:
-                        prompt = generate_prompt_train(tokenizer, language, line_dict,
+                        prompt = generate_prompt_train(tokenizer, language, line_dict, modelname,
                                                                         tag="template",
                                                                         reasoning=rejectionSampling,
                                                                         guidelines=guidelines,
@@ -223,11 +235,7 @@ def create_dataset(tokenizer, language, chat=True,DPO=False, Reward=False, Regre
 
                 #data_dict["messages"].append(prompt)
         # Create a Dataset object
-        print("Creating dataset...")
         dataset = Dataset.from_dict(data_dict)
-        print("Dataset created.")
-        dataset = dataset.shuffle(seed=42)
-        print("Dataset shuffled.")
-        datasetdict["train"] = dataset
-        print("Dataset stored in the DatasetDict.")
+        dataset_suffle = dataset.shuffle(seed=42)
+        datasetdict["train"] = dataset_suffle
     return DatasetDict(datasetdict)

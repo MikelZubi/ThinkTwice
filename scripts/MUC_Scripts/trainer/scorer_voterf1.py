@@ -166,6 +166,9 @@ for idx, outputs in enumerate(max_templates):
     lower_doc = pre_dicts[idx]["doctext"].lower()
     for template in outputs["templates"]:
         post_processed = {}
+        if isinstance(template, list):
+            post_processed = template
+            continue
         for key in template.keys():
             if key != "incident_type" and template[key] != []:
                 for elem in template[key]:

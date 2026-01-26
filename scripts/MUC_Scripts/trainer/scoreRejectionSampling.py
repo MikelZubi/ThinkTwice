@@ -1,99 +1,28 @@
-from typing import OrderedDict, List, Union, Tuple, Optional, Callable, Dict
 import json
-import sys
+import os
 import numpy as np
 import csv
-sys.path.append('multimuc/iterx/src')
-sys.path.append("class_data/")
-
-from iterx.metrics.muc.ceaf_rme import ScoreFunction
-
-from typing import Annotated
-import typer
-from iterx.metrics.ceaf_rme_cmd_utils import DatasetKind, PredictionFileType, load_predictions, load_metric
-from iterx.metrics.muc.ceaf_rme import ScoreFunction
-import os
-from MUC_Class_simplified import *
 import argparse
-#RME Functions
-def score(
-        pred_data: Dict,
-        ref_data: List,
-        dataset: Annotated[DatasetKind, typer.Option()] = DatasetKind.MUC,
-        ignore_no_template_doc: Annotated[bool, typer.Option(
-            help='Whether to ignore documents without any templates during scoring.'
-        )] = False,
-        sanitize_special_chars: Annotated[bool, typer.Option(
-            help='Whether to sanitize special characters in the predictions and references.'
-        )] = True,
-        scirex_merge_mentions: Annotated[bool, typer.Option(
-            help='Whether to merge mentions in the SciREX predictions to form entities.'
-        )] = True,
-        scorer: Annotated[ScoreFunction, typer.Option(
-            help='The scoring function to use.'
-        )] = ScoreFunction.Phi3,
-        file_type: Annotated[PredictionFileType, typer.Option(
-            help='The type of the prediction file.'
-        )] = PredictionFileType.GTT,
-        remove_span_whitespace: Annotated[bool, typer.Option(
-			help='Whether to concatenate all the spans in a mention to form a single span.'
-        )] = False,
-):
-    """Score a prediction file against a reference file."""
-    normalize_role = True if dataset == DatasetKind.MUC else False
-    convert_doc_id = True if file_type == PredictionFileType.GTT and dataset == DatasetKind.MUC else False
-    # SciREX postprocessing should have been moved out of the scorer.
-    #Honek itten duna ya iñe
-    predictions = load_predictions(pred_file=pred_data,
-                                   dataset=dataset,
-                                   file_type=file_type,
-                                   normalize_role=normalize_role,
-                                   remove_span_whitespace=remove_span_whitespace,
-                                   scirex_merge_mentions=scirex_merge_mentions,
-                                   compute_metrics=True)
-    #print(predictions)
-    #print("\n\nSALTO\n\n")
-    metric = load_metric(dataset_kind=dataset,
-                         doc_path={"dev": ref_data},
-                         ignore_no_template_doc=ignore_no_template_doc,
-                         sanitize_special_chars=sanitize_special_chars,
-                         scorer_type=scorer,
-                         convert_doc_id=convert_doc_id,
-                         compute_metrics=True)
-    #print(metric.references)
-    metric(
-        predictions=predictions,
-        pred_src_file="dev",
-        dedup=False,
-        cluster_substr=False,
-        normalize_role=normalize_role
-    )
-    results = metric.get_metric(reset=True)
-    return results 
+from max_scores import max_score
+from random_scores import random_scores
 
 
-def postprocess(id,pred,label):
-    post_preds = {}
-    post_labels = []
-    pred_json = {"pred_templates": pred, "gold_templates": label}
-    pred_id = str(
-                int(id.split("-")[0][-1]) * 10000
-                + int(id.split("-")[-1]))
-    post_preds[pred_id] = pred_json
-    post_labels.append({"docid": id, "templates": label})
-    return post_preds, post_labels    
+
 
 
 parser = argparse.ArgumentParser(description='Arguments required for the scorer')
 parser.add_argument('--split', dest='split', type=str)
 parser.add_argument("--iter", dest='iter', type=str)
 parser.add_argument("--noReasoning", dest='no_reasoning', action='store_true',)
+parser.add_argument("--modelname", dest='modelname', type=str)
 parser.set_defaults(split="dev")
 parser.set_defaults(iter=1)
 parser.set_defaults(no_reasoning=False)
+parser.set_defaults(modelname="QWEN")
 args = parser.parse_args()
 split = args.split
 iteration = args.iter
+modelname = args.modelname
 
 
 #READ GOLD
@@ -123,7 +52,7 @@ completions = []
 paths = {}
 #Iterate files in rejectionSampling/dev
 #for file in os.listdir("rejectionSampling/"+split):
-tag = "rejectionSampling/" if not args.no_reasoning else "NoReasoning/"
+tag = "rejectionSampling/"+modelname + "/" if not args.no_reasoning else "NoReasoning/"+modelname + "/"
 for file in os.listdir(tag+split+"/"+iteration+"/"):
     if file.endswith("_64.jsonl"):
         #Extract the type and n from the filename
@@ -134,7 +63,7 @@ for file in os.listdir(tag+split+"/"+iteration+"/"):
 
 
 
-header = ["Type","n","F1","Precision","Recall","STD","Mean"]
+header = ["Type","n","MAX","STD","Mean"]
 out_list = []
 ns = [64]
 stds = []
@@ -146,53 +75,12 @@ for key in paths:
         best_f1s = []
         dis = 0
         best_templates = {}
-        with open(path, "r") as file:
-            for line, gold, id, document in zip(file,ground_truths,ids,documents):
-                data = json.loads(line)
-                f1 = -1.0
-                two_empty = False
-                gold_empty = False
-                best_template = []
-                current_f1s = []
-                current_f1 = 0.0
-                print(len(data["pred_json"]))
-                for template in data["pred_json"]:
-                    if template != ["ERROR"] and template != [["ERROR"]]:
-                        completion, ground_truth = postprocess("TST1-MUC3-0001",template,gold)
-                        score_result = score(pred_data=completion, ref_data=ground_truth)
-                        current_f1 = score_result["iterx_muc_slot_f1"]
-                        #if gold == []:
-                        if gold == [] and template == []:
-                            gold_empty = True
-                            current_f1 = 1.0
-                        if current_f1 > f1:
-                            best_template = template
-                            f1 = current_f1
-                        if f1 == 0 and template == []:
-                            best_template = template
-                        current_f1s.append(current_f1)
-                best_f1s.append(f1)
-                pred_id = str(
-                        int(id.split("-")[0][-1]) * 10000
-                        + int(id.split("-")[-1]))
-                if n > 1:
-                    std = np.std(current_f1s)
-                    mean = np.mean(current_f1s)
-                else:
-                    std = 0
-                    mean = current_f1
-                if not gold_empty:
-                    means.append(mean)
-                    stds.append(std)
-                best_templates[pred_id] = {"pred_templates":best_template,"gold_templates":gold}
-            values = score(pred_data=best_templates, ref_data=labels)
-            precision = values["iterx_muc_slot_p"]
-            recall = values["iterx_muc_slot_r"]
-            f1 = values["iterx_muc_slot_f1"]
-            std = np.mean(stds)
-            mean = np.mean(means)
-            print(mean)
-            out_list.append([key,n,f1,precision,recall,std,mean])
+        print("Processing:",path)
+        max_sc = max_score(path, gold_path)
+        random_sc_list = random_scores(path, gold_path, n=100)
+        random_mean = np.mean(random_sc_list)
+        random_std = np.std(random_sc_list)
+        out_list.append([key,n,max_sc,random_std,random_mean])
 
 out_path = tag+split+"/scores_iter"+str(iteration)+".csv"
 #out_path = "rejectionSampling/"+split+"/scores.csv"

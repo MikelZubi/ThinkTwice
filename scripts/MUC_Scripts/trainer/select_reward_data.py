@@ -182,7 +182,7 @@ with open(path, "r") as file:
         pred_data = []
         current_templates = []
         for template,reasoning in zip(data["pred_json"],data["pred_reasoning"]):
-            if template != ["ERROR"] and template != [["ERROR"]]:
+            if "ERROR" not in template and ["ERROR"] not in template:
                 #TODO: Filtratu bakarrik incident_type dauketen template-ak
                 completion, ground_truth = postprocess("TST1-MUC3-0001",template,gold)
                 score_result = score(pred_data=completion, ref_data=ground_truth)

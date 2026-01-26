@@ -1,7 +1,7 @@
 #import json
 from create_data import create_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from trl import SFTTrainer, SFTConfig, DataCollatorForCompletionOnlyLM
+from trl import SFTTrainer, SFTConfig #DataCollatorForCompletionOnlyLM
 from peft import LoraConfig
 import torch
 from accelerate import PartialState
@@ -42,7 +42,7 @@ parser.set_defaults(epochs=10)
 args = parser.parse_args()
 
 
-max_seq_length = 5000
+max_seq_length = 5500
 n = args.n
 modelname = args.base_model
 model_path = args.model_path + modelname
@@ -53,9 +53,10 @@ if modelname == "DeepSeek-R1-Distill-Llama-8B":
 else:
     chat = True
 
-tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side='right') #Igual ezkerrean jarri beharko da?
-tokenizer.pad_token = "<|finetune_right_pad_id|>"
-tokenizer.pad_token_id = tokenizer.encode(tokenizer.pad_token, add_special_tokens=False)[0]
+tokenizer = AutoTokenizer.from_pretrained(model_path, padding_side='right') #Igual ezkerrean jarri beharko da? TODO: Hau debai Qwen3-rako aldatu
+if "Llama" in modelname:
+    tokenizer.pad_token = "<|finetune_right_pad_id|>"
+    tokenizer.pad_token_id = tokenizer.encode(tokenizer.pad_token, add_special_tokens=False)[0]
 print(tokenizer.pad_token_id)
 print(tokenizer.pad_token)
 tokenizer.model_max_length = max_seq_length
@@ -63,21 +64,23 @@ if args.sampled_template:
     splits = ["sampled_template"]
 else:
     splits = ["train"]
-data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=sampling, obtain_reasoning=obtain_reasoning, n=n, splits=splits)
+data = create_dataset(tokenizer,'en',modelname,chat=chat,rejectionSampling=sampling, obtain_reasoning=obtain_reasoning, n=n, splits=splits)
 
 
 
 
-
+#TODO: aldatu hau Qwen3 sartu ahal izateko
 instruct_template = "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
 if modelname == "DeepSeek-R1-Distill-Llama-70B":
     response_template = "<｜Assistant｜>"
+elif modelname == "Qwen3-32B":
+    response_template = "<|im_start|>assistant\n"
 elif modelname != "DeepSeek-R1-Distill-Llama-8B":
     response_template = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
 else:
     response_template = "<ASSISTANT>"
 #data_collator = DataCollatorForCompletionOnlyLM(response_template=tokenizer.encode(response_template,add_special_tokens=False), instruction_template=instruct_template,tokenizer=tokenizer)
-data_collator = DataCollatorForCompletionOnlyLM(response_template=response_template, tokenizer=tokenizer)
+#data_collator = DataCollatorForCompletionOnlyLM(response_template=response_template, tokenizer=tokenizer)
 
 
 batch_size = args.batch_size
@@ -133,8 +136,8 @@ def compute_metrics(eval_preds):
 
 data_train = data['train']
 print(data["train"][0])
-#gradient_acumulation = 128//(args.batch_size * 4)
-gradient_acumulation = 1
+gradient_acumulation = 128//((args.batch_size * 4)*4)
+#gradient_acumulation = 1
 # Define the trainer
 if lora:
     peft_config = LoraConfig(
@@ -167,13 +170,13 @@ config = SFTConfig(
     report_to='wandb', # 'wandb',
     do_train=True,
     use_liger_kernel=True,
-    max_seq_length=max_seq_length,
+    max_length=max_seq_length,
     deepspeed = deepspeed,
     packing=False,
     label_names=["labels"],
     gradient_checkpointing=True,
     #save_steps=0.1,
-    #logging_steps=20
+    #logging_steps=0.1
 )
 
 if deepspeed_config() is None:
@@ -197,7 +200,7 @@ train = SFTTrainer(
         peft_config=peft_config,
         #compute_metrics=compute_metrics,
         #preprocess_logits_for_metrics = preprocess_logits_for_metrics,
-        data_collator=data_collator,
+        #data_collator=data_collator,
     )
 # Train the model
 train.train()

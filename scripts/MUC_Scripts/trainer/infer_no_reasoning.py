@@ -1,5 +1,5 @@
 from transformers import AutoTokenizer
-from vllm import LLM, SamplingParams
+from vllm import LLM, SamplingParams, inputs
 from vllm.sampling_params import GuidedDecodingParams
 import json
 import os
@@ -12,7 +12,10 @@ sys.path.append("prompt_library")
 from MUC_Class_simplified import *
 from init import PROMPT_FN
 from copy import deepcopy
+import hyperparameters
 from utils import maxCommStr
+from prompt_factory import prompt_factory
+
 import torch
 
 #Argument parser
@@ -36,17 +39,15 @@ args = parser.parse_args()
 split = args.split
 language = args.language
 n = args.n
+model_name = args.model_name
+
 guided_decoding = args.guided_decoding
 
 LANGUAGE_MAP = {"en": "English", "ar": "Arabic", "fa": "Farsi", "ko": "Korean", "ru": "Russian", "zh": "Chinese"}
+language_name = LANGUAGE_MAP[language]
+prompt = prompt_factory(model_name, language_name, "MUC", think=False)
 
 
-def generate_promt(data,tokenizer,language_code):
-    language = LANGUAGE_MAP[language_code]
-    prompt = [{'role': 'system', 'content': PROMPT_FN["P_S_MUC_LLAMA_JSON"].format(language=language)}]
-    prompt.append({"role": "user", "content": PROMPT_FN["P_U_MUC_LLAMA_JSON"].format(document=data["doctext"])})
-    prompt_token_ids = tokenizer.apply_chat_template(prompt, add_generation_prompt=True)
-    return prompt_token_ids
 
 
 map_field = {"PerpInd": "A person responsible for the incident. (PerpInd)", "PerpOrg": "An organization responsible for the incident. (PerpOrg)", "Target": "An inanimate object that was attacked. (Target)", "Victim": "The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack. (Victim)", "Weapon": "A device used by the perpetrator(s) in carrying out the terrorist act. (Weapon)"}
@@ -58,11 +59,10 @@ if os.path.exists(path_write):
 
 #model_name = "deepseek-ai/DeepSeek-R1-Distill-Llama-70B"
 #model_name = "/leonardo_work/EUHPC_E04_042/BaseModels/DeepSeek-R1-Distill-Llama-70B"
-model_name = args.model_name
 #model_name = "meta-llama/Meta-Llama-3-70B-Instruct"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 llm = LLM(model=model_name, tensor_parallel_size=4, gpu_memory_utilization=0.90, max_model_len=10000)
-inputs = []
+input_ids = []
 pre_dicts = []
 
 
@@ -73,23 +73,28 @@ with open(path_read, 'r') as file:
     for line in file:
         data = json.loads(line)
         pre_dict = data
-        inputs.append(generate_promt(pre_dict,tokenizer,language))
+        input_ids.append(inputs.TokensPrompt({"prompt_token_ids":prompt.generate_prompt(data)}))
         pre_dicts.append(pre_dict)
 
-if n == 1:
-    temperature = 0.0
-else:
-    temperature = 0.7
+hyperparameters = hyperparameters.Hyperparameters(model_name, think=False, n=n)
+temperature = hyperparameters.temperature
+top_p = hyperparameters.top_p
+top_k = hyperparameters.top_k
+min_p = hyperparameters.min_p
 
 terminators = [
     tokenizer.eos_token_id,
-    tokenizer.convert_tokens_to_ids("<|eot_id|>")]
+    #tokenizer.convert_tokens_to_ids("<|eot_id|>")
+]
 if guided_decoding:
     guided_decoding_params = GuidedDecodingParams(json=Base.model_json_schema(),backend="outlines")
     result_1 = llm.generate(
-        prompt_token_ids=inputs,
+        input_ids,
         sampling_params=SamplingParams(
-            temperature=temperature, #Recommended value
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            min_p=min_p,
             max_tokens=4000,
             seed=42,
             stop_token_ids=terminators,
@@ -100,9 +105,12 @@ if guided_decoding:
     )
 else:
     result_1 = llm.generate(
-        prompt_token_ids=inputs,
+        input_ids,
         sampling_params=SamplingParams(
-            temperature=temperature, #Recommended value
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            min_p=min_p,
             max_tokens=4000,
             seed=42,
             stop_token_ids=terminators,
@@ -117,10 +125,10 @@ for idx, outputs in enumerate(result_1):
     lower_doc = pre_dicts[idx]["doctext"].lower()
     for j, output in enumerate(outputs.outputs):
         post_templates = []
-        print(output.text)
         try:
-            _ = Base(**json.loads(output.text))
-            for template in json.loads(output.text)["templates"]:
+            new_text = output.text.replace("\n<think>\n\n</think>\n\n","")
+            _ = Base(**json.loads(new_text))
+            for template in json.loads(new_text)["templates"]:
                 post_processed = {}
                 for key in template.keys():
                     if key != "incident_type" and template[key] != []:

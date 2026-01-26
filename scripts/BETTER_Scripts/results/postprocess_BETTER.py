@@ -5,9 +5,11 @@ import os
 sys.path.append("class_data")
 from BETTER_Granular_Class import *
 import BETTER_Granular_Class_simplified as simp_class
+import BETTER_Granular_Class_string as str_class
 import pylcs
 sys.path.append("scripts/BETTER_Scripts/preprocess")
 from simplified2normal import simplified2normal
+from str2simp import str2simp
 
 def detect_largest_coincidency(document, span_string):
     res = pylcs.lcs_string_idx(span_string, document)
@@ -55,7 +57,7 @@ def spans_ids(spans,prev_spans_ids,document,last_key="ss-0",is_anchor=False):
     str_last_key = "ss-"+str(last_key_int)
     return str_last_key
 
-def create_all_ids(data,document,simplified=False):
+def create_all_ids(data,document,simplified=False, str_template=True):
     all_spans = {}
     all_events = {}
     new_templates = {}
@@ -63,6 +65,10 @@ def create_all_ids(data,document,simplified=False):
     last_span_key = "ss-0"
     last_event_key = "event-0"
     compare_ids = lambda x,y: int(x.split("-")[1]) > int(y.split("-")[1])
+
+    if str_template:
+        data = str2simp(data)
+        simplified = True
 
     if simplified:
         data = simplified2normal(data)
@@ -141,28 +147,72 @@ def create_all_ids(data,document,simplified=False):
     result = {"events":all_events,"granular-templates":new_templates,"span-sets":all_spans}
     return result
 
-def postprocess(file_path, simplified=False):
+def postprocess(file_path, simplified=False, str_template=True):
     postprocess_dict = {}
+    error_count = 0
     with open(file_path, 'r') as file:
         for line in file:
             data = json.loads(line)
-            if simplified:
+            if data["templates"]== []:
+                print("EMPTY TEMPLATE")
+                postprocess_template = {"events":{}, "granular-templates":{}, "span-sets":{}}
+            elif "ERROR" in data["templates"] or "ERROR" in data["templates"][0]:
+                error_count += 1
+                postprocess_template = {"events":{}, "granular-templates":{}, "span-sets":{}}
+            else:
+                if str_template:
+                    template_data = str_class.Template.model_validate({"templates":data["templates"]}).model_dump()
+                elif simplified:
+                    template_data = simp_class.Template.model_validate({"templates":data["templates"]}).model_dump()
+                else:
+                    template_data = Template.model_validate({"templates":data["templates"]}).model_dump()
+                postprocess_template = create_all_ids(template_data["templates"],data["doctext"],simplified)
+            postprocess_dict[data["docid"]] = {"annotation-sets":{"basic-events":postprocess_template},"doc-id":data["docid"],"entry-id":data["docid"],"segment-text":data["doctext"]}
+    header = {"corpus-id":"Phase 2 Granular English 16 Dec 2021, Provided Devtest Ref (Obfuscated)", "entries":postprocess_dict, "format-type":"bp-corpus", "format-version":"v10"}
+    return header, error_count
+
+
+def dict_postprocess(input_data, simplified=False, str_template=True):
+    postprocess_dict = {}
+    error_count = 0
+    for line in input_data:
+        data = line
+        if data["templates"]== []:
+            print("EMPTY TEMPLATE")
+            postprocess_template = {"events":{}, "granular-templates":{}, "span-sets":{}}
+        elif "ERROR" in data["templates"] or "ERROR" in data["templates"][0]:
+            error_count += 1
+            postprocess_template = {"events":{}, "granular-templates":{}, "span-sets":{}}
+        else:
+            if str_template:
+                template_data = str_class.Template.model_validate({"templates":data["templates"]}).model_dump()
+            elif simplified:
                 template_data = simp_class.Template.model_validate({"templates":data["templates"]}).model_dump()
             else:
                 template_data = Template.model_validate({"templates":data["templates"]}).model_dump()
-            postprocess_template = create_all_ids(template_data["templates"],data["doctext"],simplified)
-            postprocess_dict[data["docid"]] = {"annotation-sets":{"basic-events":postprocess_template},"doc-id":data["docid"],"entry-id":data["docid"],"segment-text":data["doctext"]}
+            postprocess_template = create_all_ids(template_data["templates"],data["doctext"],simplified,str_template)
+        postprocess_dict[data["docid"]] = {"annotation-sets":{"basic-events":postprocess_template},"doc-id":data["docid"],"entry-id":data["docid"],"segment-text":data["doctext"],"segment-type": "document"}
     header = {"corpus-id":"Phase 2 Granular English 16 Dec 2021, Provided Devtest Ref (Obfuscated)", "entries":postprocess_dict, "format-type":"bp-corpus", "format-version":"v10"}
-    return header
+    return header, error_count
 
-def write_postprocessed_data(input_file_path, output_file_path, simplified=False):
+def write_postprocessed_data(input_file_path, output_file_path, simplified=False, str_template=True):
     
-    postprocessed_data = postprocess(input_file_path, simplified)
+    postprocessed_data, error_count = postprocess(input_file_path, simplified, str_template)
     output_folder = os.path.dirname(output_file_path)
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     with open(output_file_path, 'w') as file:
         json.dump(postprocessed_data, file, indent=4)
+    return error_count
+
+def dict_postprocessed_data(input_file_path, simplified=False, dict_input=False, str_template=True):
+
+    if not dict_input:
+        postprocessed_data, error_count = postprocess(input_file_path, simplified, str_template)
+    else:
+        postprocessed_data, error_count = dict_postprocess(input_file_path, simplified, str_template)
+
+    return postprocessed_data, error_count
 
 
 if __name__ == "__main__":

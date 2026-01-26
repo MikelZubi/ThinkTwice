@@ -52,7 +52,7 @@ args = parser.parse_args()
 #accelerator = Accelerator(InitProcessGroupKwargs(timeout=timedelta(seconds=36000)))
 
 
-max_seq_length = 5000
+max_seq_length = 5500
 modelname = args.base_model
 load_data = args.load_data
 guidelines = args.guidelines
@@ -70,7 +70,7 @@ tokenizer.model_max_length = max_seq_length
 splits = ["train"]
 
 if load_data:
-    data = load_from_disk("/leonardo_scratch/large/userexternal/mzubilla/data/reward")
+    data = load_from_disk("/scratch/ehu_p518_1/ehu_p518_1_1/data/reward")
 else:
     data = create_dataset(tokenizer,'en',chat=chat,rejectionSampling=False, Reward=True, n=-1, splits=splits, guidelines=guidelines)
 
@@ -129,6 +129,8 @@ def compute_metrics(eval_preds):
 '''
 
 data_train = data['train']
+data_train = data_train.rename_column("input_ids_chosen", "chosen_input_ids")
+data_train = data_train.rename_column("input_ids_rejected", "rejected_input_ids")
 '''
 # Calculate the maximum sequence length in the training data for both chosen and rejected
 max_length_chosen = 0
@@ -151,7 +153,7 @@ if max(max_length_chosen, max_length_rejected) > max_seq_length:
 '''
 
 #gradient_acumulation = 128//(args.batch_size * 4)
-gradient_acumulation = 1
+gradient_acumulation = 4
 # Define the trainer
 if lora:
     peft_config = LoraConfig(
@@ -182,7 +184,7 @@ config = RewardConfig(
     report_to='wandb', # 'wandb',
     do_train=True,
     #use_liger_kernel=True,
-    max_length=max_seq_length,
+    max_length=None,
     deepspeed = deepspeed,
     #packing=False,
     label_names=["labels"],

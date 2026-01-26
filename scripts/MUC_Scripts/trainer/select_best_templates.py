@@ -11,6 +11,9 @@ from typing import Annotated
 import typer
 from iterx.metrics.ceaf_rme_cmd_utils import DatasetKind, PredictionFileType, load_predictions, load_metric
 from iterx.metrics.muc.ceaf_rme import ScoreFunction
+import csv
+import argparse
+
 
 #RME Functions
 def score(
@@ -108,7 +111,30 @@ def postprocess(id,pred,label):
     return post_preds, post_labels
 
 
-import argparse
+def best_checkpoint(iter,modelname):
+    # Ruta del archivo CSV generado por scoreRejectionSampling.py
+    csv_path = f"rejectionSampling/{modelname}/train/scores_iter{iter}.csv"
+
+    # Inicializar variables para almacenar el mejor checkpoint
+    best_f1 = -1
+    best_checkpoint_type = None
+
+    # Leer el archivo CSV
+    with open(csv_path, "r") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            f1 = float(row["F1"])
+            if f1 > best_f1:
+                best_f1 = f1
+                best_checkpoint_type = row["Type"]
+
+    # Construir la ruta del mejor checkpoint
+    if best_checkpoint_type:
+        checkpoint_path = f"rejectionSampling/{modelname}/train/{iter}/{best_checkpoint_type}_64.jsonl"
+        print(f"Mejor checkpoint (F1={best_f1}): {checkpoint_path}")
+        return checkpoint_path
+    else:
+        raise ValueError("No se encontró ningún checkpoint válido en el archivo CSV.")
 
 #Argument parser
 parser = argparse.ArgumentParser(description='Arguments for the creation of the train dataset')
@@ -117,12 +143,18 @@ parser.add_argument('--n', dest='n', type=int,
 parser.add_argument("--iter", dest="iter", type=str)
 parser.add_argument("--read", dest="read", type=str)
 parser.add_argument("--obtain-reasoning", dest="obtain_reasoning", action="store_true",)
+parser.add_argument("--modelname", dest="modelname", type=str)
+parser.set_defaults(modelname="QWEN")
 parser.set_defaults(obtain_reasoning=False)
-parser.set_defaults(n=32)
+parser.set_defaults(n=8)
 parser.set_defaults(iter=1)
+parser.set_defaults(read=None)
 n = parser.parse_args().n
 iteration = parser.parse_args().iter
 read = parser.parse_args().read
+modelname = parser.parse_args().modelname
+if read is None:
+    read = best_checkpoint(iteration,modelname)
 obtain_reasoning = parser.parse_args().obtain_reasoning
 #READ GOLD
 gold_path = "multimuc/data/multimuc_v1.0/corrected/en/train.jsonl"#IDATZI
@@ -144,7 +176,6 @@ with open(gold_path, "r") as file:
 
 completions = []
 out_list = []
-#path = "rejectionSampling/train/"+iteration+"/"+read #TODO
 path = read
 best_f1s = []
 dis = 0
@@ -162,8 +193,7 @@ with open(path, "r") as file:
         current_f1s = []
         pred_data = []
         for template,reasoning in zip(data["pred_json"],data["pred_reasoning"]):
-            if template != ["ERROR"] and template != [["ERROR"]]:
-                #TODO: Filtratu bakarrik incident_type dauketen template-ak
+            if "ERROR" not in template and ["ERROR"] not in template:
 
                 completion, ground_truth = postprocess("TST1-MUC3-0001",template,gold)
                 score_result = score(pred_data=completion, ref_data=ground_truth)
@@ -188,7 +218,6 @@ with open(path, "r") as file:
         pred_id = str(
             int(id.split("-")[0][-1]) * 10000
             + int(id.split("-")[-1]))
-        print(pred_id)
         pred_data.sort(key=lambda x: x[0], reverse=True)
         best_template = pred_data[0][1]
 
@@ -198,7 +227,8 @@ with open(path, "r") as file:
             for _, template, reasoning in selected_values:
                 if template != ["ERROR"] and template != [["ERROR"]]:
                     post_template = simplify_template(template)
-                    outputs.append({"docid": id, "completion": "<think>\n" + reasoning + "</THINK_TOKENA>" + post_template, "doctext": document})
+                    post_reasoning = reasoning.replace("<think>\n", "").replace("</think>", "")
+                    outputs.append({"docid": id, "completion": "<think>\n" + post_reasoning + "</THINK_TOKENA>" + post_template, "doctext": document})
             if n == 1:
                 for _, template, _ in selected_values:
                     if template != ["ERROR"] and template != [["ERROR"]]:
@@ -212,6 +242,7 @@ with open(path, "r") as file:
             for _, template, reasoning in selected_values:
                 if template != ["ERROR"] and template != [["ERROR"]] and reasoning not in reasonings:
                     post_template = simplify_template(template)
+                    post_reasoning = reasoning.replace("<think>\n", "").replace("</think>", "")
                     outputs.append({"docid": id, "reasoning": "<think>\n" + reasoning + "</THINK_TOKENA>", "template": post_template, "doctext": document})
                     reasonings.append(reasoning)
 values = score(pred_data=best_templates, ref_data=labels)

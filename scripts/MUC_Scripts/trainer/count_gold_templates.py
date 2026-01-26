@@ -117,9 +117,6 @@ with open(path, "r") as file:
                         counter_correct_empty += 1
                     elif only_incident_template(template):
                         counter_correct_incident_only += 1
-                    else:
-                        print(gold)
-                        print(reasoning)
                     break
 
 print("Counter Correct:", counter_correct)
