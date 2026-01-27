@@ -1,6 +1,6 @@
 # ThinkTwice
 
-This repository contains the code for the paper **"ThinkTwice"**, a sampling and selection framework for Document-level Information Extraction (DocIE): LINK_TO_PAPER
+This repository contains the code for the paper **"ThinkTwice"**, a sampling and selection framework for Document-level Information Extraction (DocIE): [https://arxiv.org/abs/2601.18395](https://arxiv.org/abs/2601.18395)
 
 ## 📊 Datasets
 
