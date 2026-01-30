@@ -1,6 +1,6 @@
 LANGUAGES=("en" "ar" "fa" "ko" "ru" "zh" "en_string")
-BOOSTRAP_N=$2
-language=${LANGUAGES[$1]}
+BOOSTRAP_N=$1
+language=${LANGUAGES[$2]}
 split="test"
 
 MODELS_BETTER=("Llama3.3-70B" "LlamaR1-70B" "Qwen3-32B_nothink" "Qwen3-32B_think")
@@ -27,3 +27,4 @@ else
     done
     python scripts/MUC_Scripts/zeroshot/calculate_results.py --read results/MUC/zeroshot/$split/$language/voterMajority --split $split --language $language --voter
 fi
+echo "Voter Majority calculation completed for language: ${language}, boostrapp sample: ${BOOSTRAP_N}"

@@ -2,14 +2,14 @@
 #SBATCH --qos=serial
 ##SBATCH --partition=serial
 ##SBATCH --account=hitz-exclusive
-#SBATCH --job-name=boostrapp_VoterF1
+#SBATCH --job-name=boostrapp_VoterMajority
 #SBATCH --cpus-per-task=1
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem=16GB
 #SBATCH --time=1:00:00
-#SBATCH --output=./SLURM/boostrapp_VoterF1-%a.log
-#SBATCH --error=./SLURM/boostrapp_VoterF1-%a.err
+#SBATCH --output=./SLURM/boostrapp/VoterMajority-%a.log
+#SBATCH --error=./SLURM/boostrapp/VoterMajority-%a.err
 #SBATCH --array=0-20
 
 source ~/.bashrc

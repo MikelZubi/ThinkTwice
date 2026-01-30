@@ -8,8 +8,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --mem=16GB
 #SBATCH --time=1:00:00
-#SBATCH --output=./SLURM/boostrapp_VoterF1-%a.log
-#SBATCH --error=./SLURM/boostrapp_VoterF1-%a.err
+#SBATCH --output=./SLURM/boostrapp/VoterF1-%a.log
+#SBATCH --error=./SLURM/boostrapp/VoterF1-%a.err
 #SBATCH --array=0-20
 
 source ~/.bashrc
