@@ -59,6 +59,7 @@ pre_dicts = []
 #STEP 1: Created the reasoning
 inputs_all = []
 templates_all = []
+score_dict_all = []
 pre_dict_all = []
 with open(predict_dir, 'r') as file:
     for line in file:
@@ -70,23 +71,28 @@ with open(predict_dir, 'r') as file:
             if template not in templates_list:
                 templates_list.append(template)
         inputs = []
+        score_dict = {}
         for template in templates_list:
-            str_template = str(template)
+            str_template = json.dumps(template, ensure_ascii=False)
+            score_dict[str_template] = 0.0
             prompt = prompt_class.generate_prompt(pre_dict, template=str_template)
             inputs.append(prompt)
         templates_all.append(templates_list)
         inputs_all.append(inputs)
         pre_dict_all.append(pre_dict)
+        score_dict_all.append(score_dict)
 
 max_last = 0
 new_pred_dict_all = []
 with torch.no_grad():
-    for templates, inputs, pre_dict in tqdm(zip(templates_all, inputs_all, pre_dict_all)):
+    for templates, inputs, pre_dict, score_dict in tqdm(zip(templates_all, inputs_all, pre_dict_all, score_dict_all), total=len(inputs_all)):
         best_template = []
         max_log = float("-inf")
         for inp, temp in zip(inputs, templates):
             logits = model(inp).logits
             logits_item = logits.item()
+            str_template = json.dumps(temp, ensure_ascii=False)
+            score_dict[str_template] = logits_item
             if logits_item > max_log:
                 max_log = logits_item
                 best_template = temp
@@ -95,6 +101,7 @@ with torch.no_grad():
             "doctext": pre_dict["doctext"],
             "templates": pre_dict["templates"],
             "pred_json": best_template,
+            "score_dict": score_dict
         }
         new_pred_dict_all.append(new_pre_dict)
 

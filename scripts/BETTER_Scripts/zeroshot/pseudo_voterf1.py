@@ -9,7 +9,7 @@ def template_voting(line):
     #TODO: Oaintxe bertan errore bat scorer-ean, hypotesia: ezin da eventu utsa duen template-ak prozesatu, komprobatu eta ala bada gehitu gezurretazko eventu bat ("a" esaterako bietan)
     id = line["docid"]
     document = line["doctext"]
-    templates = line["templates"]
+    templates = line["pred_json"]
 
     cleaned_templates = [template for template in templates if "ERROR" not in template or "ERROR" not in template[0]]
     if cleaned_templates == []:
@@ -56,7 +56,7 @@ with open(read_file, 'r') as file:
         max_template = template_voting(data)
         if max_template == ["ERROR"]:
             error_count += 1
-        pre_dict["templates"] = max_template
+        pre_dict["pred_json"] = max_template
         pre_dicts.append(pre_dict)
 print("\n\n\n********************TOTAL ERRORS********************\n")
 print(error_count)

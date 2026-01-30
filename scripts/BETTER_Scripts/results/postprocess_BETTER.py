@@ -177,6 +177,8 @@ def dict_postprocess(input_data, simplified=False, str_template=True):
     error_count = 0
     for line in input_data:
         data = line
+        if "templates" not in data and "pred_json" in data:
+            data["templates"] = data["pred_json"]
         if data["templates"]== []:
             print("EMPTY TEMPLATE")
             postprocess_template = {"events":{}, "granular-templates":{}, "span-sets":{}}

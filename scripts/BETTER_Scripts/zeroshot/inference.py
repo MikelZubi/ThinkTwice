@@ -148,7 +148,7 @@ if think:
             pre_dicts[idx]["pred_reasoning"] = [reasoning[idx][j] + output.text for j, output in enumerate(outputs.outputs)]
         else:
             pre_dicts[idx]["pred_reasoning"] = [output.text for output in outputs.outputs]
-        pre_dicts[idx]["templates"] = [None]*n
+        pre_dicts[idx]["pred_json"] = [None]*n
         for output in outputs.outputs:
             lag_ids = input_ids[idx]["prompt_token_ids"] + list(output.token_ids)
             new_inputs.append(inputs.TokensPrompt({"prompt_token_ids": lag_ids}))
@@ -157,7 +157,7 @@ else:
     for idx, ids in enumerate(input_ids):
         for j in range(n):
             new_inputs.append(ids)
-        pre_dicts[idx]["templates"] = [None]*n
+        pre_dicts[idx]["pred_json"] = [None]*n
 
 
 terminators = [
@@ -186,14 +186,14 @@ for idx_n, outputs in enumerate(result_2):
     post_templates = []
     lower_doc = pre_dicts[idx]["doctext"].lower()
     try:
-        post_templates = json.loads(outputs.outputs[0].text)["templates"]
+        post_templates = json.loads(outputs.outputs[0].text)["pred_json"]
     except json.decoder.JSONDecodeError:
         print(outputs.outputs[0].text)
         post_templates = ["ERROR"]
     if n > 1:
-        pre_dicts[idx]["templates"][idx_n % n] = post_templates
+        pre_dicts[idx]["pred_json"][idx_n % n] = post_templates
     else:
-        pre_dicts[idx]["templates"] = post_templates
+        pre_dicts[idx]["pred_json"] = post_templates
 
 
 print("Done")

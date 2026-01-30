@@ -3,17 +3,17 @@ import json
 import copy as cp
 from typing import OrderedDict, List, Union, Tuple, Optional, Callable, Dict
 
-sys.path.append('multimuc/iterx/src')
+sys.path.append('iterx')
 
-from iterx.metrics.muc.ceaf_rme import generate_scoring_structures, IterXTemplate, SCORER_CONSTRUCTOR
-from iterx.metrics.muc.ceaf_rme import ScoreFunction
+from metrics.muc.ceaf_rme import generate_scoring_structures, IterXTemplate, SCORER_CONSTRUCTOR
+from metrics.muc.ceaf_rme import ScoreFunction
 
 from pathlib import Path
 from typing import Annotated
 import typer
-from iterx.metrics.ceaf_rme_cmd_utils import DatasetKind, PredictionFileType, load_predictions, load_metric, \
+from metrics.ceaf_rme_cmd_utils import DatasetKind, PredictionFileType, load_predictions, load_metric, \
     load_references, print_prediction_comparison
-from iterx.metrics.muc.ceaf_rme import ScoreFunction
+from metrics.muc.ceaf_rme import ScoreFunction
 import os
 import csv
 import argparse

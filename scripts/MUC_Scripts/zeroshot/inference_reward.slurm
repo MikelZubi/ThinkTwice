@@ -10,7 +10,7 @@
 #SBATCH --mem=64GB
 #SBATCH --gres=gpu:1
 #SBATCH --constraint=a100-sxm4
-#SBATCH --time=16:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=./SLURM/inference-MUC-reward-%a.log
 #SBATCH --error=./SLURM/inference-MUC-reward-%a.err
 #SBATCH --array=0-5%4
@@ -28,34 +28,34 @@ MODEL_DIR="/data/mzubillaga/Reward/QWEN/checkpoint-6674"
 mkdir -p results/MUC/zeroshot/${split}/${lang}/Reward
 
 
-#echo "MUCQWEN think"
-#OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/MUCQWEN_think-Reward_1.jsonl"
-#PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/MUCQWEN_think_64.jsonl"
-#python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
+echo "MUCQWEN think"
+OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/MUCQWEN_think-Reward_1.jsonl"
+PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/MUCQWEN_think_64.jsonl"
+python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
 
-#echo "QWEN think"
+echo "QWEN think"
 
-#OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/Qwen3_think-Reward_1.jsonl"
-#PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/Qwen3-32B_think_64.jsonl"
-#python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
+OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/Qwen3_think-Reward_1.jsonl"
+PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/Qwen3-32B_think_64.jsonl"
+python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
 
-#echo "MUCQWEN nothink"
-#OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/MUCQWEN_nothink-Reward_1.jsonl"
-#PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/MUCQWEN_nothink_64.jsonl"
-#python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
+echo "MUCQWEN nothink"
+OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/MUCQWEN_nothink-Reward_1.jsonl"
+PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/MUCQWEN_nothink_64.jsonl"
+python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
 
-#echo "QWEN nothink"
-#OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/Qwen3_nothink-Reward_1.jsonl"
-#PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/Qwen3-32B_nothink_64.jsonl"
-#python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
+echo "QWEN nothink"
+OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/Qwen3_nothink-Reward_1.jsonl"
+PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/Qwen3-32B_nothink_64.jsonl"
+python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
 
 
-#echo "Llama R1"
-#MODEL_DIR="/data/mzubillaga/Reward/LLAMA/checkpoint-10011"
+echo "Llama R1"
+MODEL_DIR="/data/mzubillaga/Reward/LLAMA/checkpoint-10011"
 
-#OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/LlamaR1-70B-Reward_1.jsonl"
-#PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/LlamaR1-70B_64.jsonl"
-#python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
+OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/LlamaR1-70B-Reward_1.jsonl"
+PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/LlamaR1-70B_64.jsonl"
+python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
 
 echo "MUCR1"
 MODEL_DIR="/data/mzubillaga/Reward/LLAMA/checkpoint-10011"
