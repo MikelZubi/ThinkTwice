@@ -12,7 +12,6 @@
 #SBATCH --error=./SLURM/boostrapp/Reward-%a.err
 #SBATCH --array=0-17
 
-source ~/.bashrc
 
 ID=$SLURM_ARRAY_TASK_ID
 INP1=$((ID / 6))

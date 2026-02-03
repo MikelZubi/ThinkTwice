@@ -1,6 +1,8 @@
 import json
 import argparse
 
+def remove_errors(all_templates):
+    return [template for template in all_templates if ["ERROR"]  != template and [["ERROR"]] != template and "ERROR" not in template]
 
 def bostrapped_reward(reward_file_path: str, boostrapp_file_path: str):
     """
@@ -26,7 +28,8 @@ def bostrapped_reward(reward_file_path: str, boostrapp_file_path: str):
     for reward_line, boostrapp_line in zip(reward_data, boostrapp_data):
         best_template = []
         max_log = float("-inf")
-        for template in boostrapp_line["pred_json"]:
+        boostrapped_templates = remove_errors(boostrapp_line["pred_json"])
+        for template in boostrapped_templates:
             str_template = json.dumps(template, ensure_ascii=False)
             score = reward_line[str_template]
             if score > max_log:

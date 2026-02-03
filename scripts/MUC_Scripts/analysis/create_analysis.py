@@ -8,19 +8,21 @@ from max_score import max_score
 from random_scores import random_scores
 
 parser = argparse.ArgumentParser(description='Arguments required to create analysis')
-parser.add_argument("--split", dest="split", type=str, default='dev')
+parser.add_argument("--split", dest="split", type=str, default='test')
 
-def read_csv_file(file_path, modelname):
-    if "Reward" in file_path:
-        find_modelname = modelname.replace("-32B","").replace("-70B","")
-    else:
-        find_modelname = modelname
+
+def read_csv_file(file_path, modelname,mean_std=False):
     with open(file_path, newline='') as csvfile:
         for row in csv.DictReader(csvfile):
-            if find_modelname in row['file']:
-                return float(row["f1"])
-        print(f"{find_modelname} Not found. in {file_path}")
-        return 0.0
+            if modelname in row['file']:
+                if mean_std:
+                    mean = float(row['f1'].split('±')[0]) * 100
+                    std = float(row['f1'].split('±')[1]) * 100
+                    output = str(mean) + "±" + str(std)
+                else:
+                    output = float(row['f1']) * 100
+                return str(output)
+        return "0.0"
 
 
 languages = ["en", "ar", "fa", "ko", "ru", "zh"]
@@ -45,8 +47,11 @@ for language in languages:
         random_std = np.std(random_sc_list)
         greedy = read_csv_file(read+".csv", modelname)
         voter_majority = read_csv_file(read+"/voterMajority.csv", modelname)
+        voter_majority_mean_std = read_csv_file(read+"/votermajority_mean_std.csv", modelname, mean_std=True)
         voter_f1 = read_csv_file(read+"/voterf1.csv", modelname)
+        voter_f1_mean_std = read_csv_file(read+"/voterf1_mean_std.csv", modelname, mean_std=True)
         reward = read_csv_file(read+"/Reward.csv", modelname)
+        reward_mean_std = read_csv_file(read+"/reward_mean_std.csv", modelname, mean_std=True)
         print("Reward Score:", reward)
         row = {
             'language': language,
@@ -54,14 +59,17 @@ for language in languages:
             'max_score': max_sc * 100,
             'random_mean_score': random_mean * 100,
             'random_std_score': random_std * 100,
-            'greedy': greedy * 100,
-            'voter_majority': voter_majority * 100,
-            'voter_f1': voter_f1 * 100,
-            'reward': reward* 100
+            'greedy': greedy,
+            'voter_majority': voter_majority,
+            'voter_f1': voter_f1,
+            'reward': reward,
+            'voter_majority_mean_std': voter_majority_mean_std,
+            'voter_f1_mean_std': voter_f1_mean_std,
+            'reward_mean_std': reward_mean_std
         }
         rows.append(row)
 
-fieldnames = ['language', 'modelname', 'max_score', 'random_mean_score', 'random_std_score', 'greedy', 'voter_majority', 'voter_f1', 'reward']
+fieldnames = ['language', 'modelname', 'max_score', 'random_mean_score', 'random_std_score', 'greedy', 'voter_majority', 'voter_f1', 'reward', 'voter_majority_mean_std', 'voter_f1_mean_std', 'reward_mean_std']
 #fieldnames = ['language', 'modelname', 'max_score', 'random_mean_score', 'random_std_score', 'greedy', 'voter_majority', 'voter_f1']
 output_file =  "results/MUC/zeroshot/" + split + "/multilingual_analysis.csv"
 with open(output_file, 'w', newline='') as f:

@@ -35,7 +35,7 @@ python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR -
 
 echo "QWEN think"
 
-OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/Qwen3_think-Reward_1.jsonl"
+OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/Qwen3-32B_think-Reward_1.jsonl"
 PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/Qwen3-32B_think_64.jsonl"
 python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
 
@@ -45,7 +45,7 @@ PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/MUCQWEN_nothink_64.jsonl"
 python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
 
 echo "QWEN nothink"
-OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/Qwen3_nothink-Reward_1.jsonl"
+OUT_DIR="results/MUC/zeroshot/${split}/${lang}/Reward/Qwen3-32B_nothink-Reward_1.jsonl"
 PREDICT_DIR="results/MUC/zeroshot/${split}/${lang}/Qwen3-32B_nothink_64.jsonl"
 python scripts/MUC_Scripts/zeroshot/inference_reward.py --model-dir $MODEL_DIR --predict-dir $PREDICT_DIR --out-dir $OUT_DIR --language $lang
 

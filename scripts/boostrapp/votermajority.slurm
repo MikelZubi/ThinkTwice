@@ -12,7 +12,6 @@
 #SBATCH --error=./SLURM/boostrapp/VoterMajority-%a.err
 #SBATCH --array=0-20
 
-source ~/.bashrc
 
 ID=$SLURM_ARRAY_TASK_ID
 INP1=$((ID / 7))

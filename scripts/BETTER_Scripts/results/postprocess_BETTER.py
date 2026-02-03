@@ -153,6 +153,8 @@ def postprocess(file_path, simplified=False, str_template=True):
     with open(file_path, 'r') as file:
         for line in file:
             data = json.loads(line)
+            if "templates" not in data and "pred_json" in data:
+                data["templates"] = data["pred_json"]
             if data["templates"]== []:
                 print("EMPTY TEMPLATE")
                 postprocess_template = {"events":{}, "granular-templates":{}, "span-sets":{}}

@@ -1,3 +1,5 @@
+source ~/.bashrc
+
 LANGUAGES=("en" "ar" "fa" "ko" "ru" "zh" "en_string")
 BOOSTRAP_N=$1
 language=${LANGUAGES[$2]}
@@ -15,7 +17,7 @@ if [ "$language" == "en_string" ]; then
         OUT_DIR="results/BETTER/zeroshot/${split}/${language}/boostrapp${BOOSTRAP_N}/voterMajority/${MODELNAME}_1.jsonl"
         python scripts/BETTER_Scripts/zeroshot/voterSimilarity.py --read ${READ_FILE} --out ${OUT_DIR}
     done
-    python scripts/BETTER_Scripts/results/better_scorer.py --read results/BETTER/zeroshot/$split/$language/voterMajority --split $split --str-templates
+    python scripts/BETTER_Scripts/results/better_scorer.py --read results/BETTER/zeroshot/$split/$language/boostrapp${BOOSTRAP_N}/voterMajority --split $split --str-templates
 else
     mkdir -p results/MUC/zeroshot/${split}/${language}/boostrapp${BOOSTRAP_N}/voterMajority/
     evaluate_iterX
@@ -25,6 +27,6 @@ else
         OUT_DIR="results/MUC/zeroshot/${split}/${language}/boostrapp${BOOSTRAP_N}/voterMajority/${MODELNAME}_64.jsonl"
         python scripts/MUC_Scripts/zeroshot/scorer_voterMajority.py --read ${READ_FILE} --out ${OUT_DIR}
     done
-    python scripts/MUC_Scripts/zeroshot/calculate_results.py --read results/MUC/zeroshot/$split/$language/voterMajority --split $split --language $language --voter
+    python scripts/MUC_Scripts/zeroshot/calculate_results.py --read results/MUC/zeroshot/$split/$language/boostrapp${BOOSTRAP_N}/voterMajority --split $split --language $language --voter
 fi
 echo "Voter Majority calculation completed for language: ${language}, boostrapp sample: ${BOOSTRAP_N}"

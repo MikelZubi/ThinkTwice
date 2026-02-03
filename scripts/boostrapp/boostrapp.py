@@ -28,7 +28,10 @@ def boostrapp(input_path, output_path):
         for line in lines:
             data = json.loads(line)
             chosen = random.choices(data["pred_json"], k=len(data["pred_json"]))
-            new_line = {"docid": data["docid"], "doctext": data["doctext"], "pred_json": chosen}
+            if "templates" in data:
+                new_line = {"docid": data["docid"], "doctext": data["doctext"], "pred_json": chosen, "templates": data["templates"]}
+            else:
+                new_line = {"docid": data["docid"], "doctext": data["doctext"], "pred_json": chosen}
             new_data.append(json.dumps(new_line))   
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w") as f:

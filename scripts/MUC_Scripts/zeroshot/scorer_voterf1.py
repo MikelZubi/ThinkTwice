@@ -113,7 +113,7 @@ def postprocess(id,pred,label,document):
     return post_preds, post_labels    
 
 def remove_errors(all_templates):
-    return [template for template in all_templates if ["ERROR"]  != template and [["ERROR"]] != template]
+    return [template for template in all_templates if ["ERROR"]  != template and [["ERROR"]] != template and "ERROR" not in template]
 
 def template_voting(templates,document):
     templates = remove_errors(templates)

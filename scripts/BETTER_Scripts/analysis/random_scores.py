@@ -8,6 +8,9 @@ import score
 from lib.bp import BPDocument
 import random as rd
 
+def remove_errors(all_templates):
+    return [template for template in all_templates if ["ERROR"]  != template and [["ERROR"]] != template and "ERROR" not in template]
+
 def obtain_randoms_per_entry(entries_path):
     with open(entries_path, 'r') as f:
         entries_data = []
@@ -17,7 +20,7 @@ def obtain_randoms_per_entry(entries_path):
     for entry in entries_data:
 
         #CLEAN TEMPLATES
-        no_error_templates = [template for template in entry['templates'] if "ERROR" not in template and "ERROR" not in template[0]]
+        no_error_templates = remove_errors(entry['templates'])
         if no_error_templates == []:
             selected_template = ["ERROR"]
         else:

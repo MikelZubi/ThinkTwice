@@ -7,6 +7,9 @@ from tqdm import tqdm
 import score
 from lib.bp import BPDocument
 
+def remove_errors(all_templates):
+    return [template for template in all_templates if ["ERROR"]  != template and [["ERROR"]] != template and "ERROR" not in template]
+
 def obtain_best_per_entry(entries_path, gold_path):
     with open(gold_path, 'r') as f:
         gold_data = json.load(f)
@@ -26,7 +29,7 @@ def obtain_best_per_entry(entries_path, gold_path):
         "format-version": gold_data["format-version"]})
 
         #CLEAN TEMPLATES
-        no_error_templates = [template for template in entry['templates'] if "ERROR" not in template and "ERROR" not in template[0]]
+        no_error_templates = remove_errors(entry['templates'])
         post_templates = []
         if no_error_templates == []:
             max_post_template = ["ERROR"]
