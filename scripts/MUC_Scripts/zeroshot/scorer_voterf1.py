@@ -8,7 +8,7 @@ import json
 import copy as cp
 from typing import OrderedDict, List, Union, Tuple, Optional, Callable, Dict
 
-sys.path.append('multimuc/iterx/src')
+sys.path.append('ceaf_rme')
 
 from iterx.metrics.muc.ceaf_rme import generate_scoring_structures, IterXTemplate, SCORER_CONSTRUCTOR
 from iterx.metrics.muc.ceaf_rme import ScoreFunction

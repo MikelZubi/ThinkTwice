@@ -60,7 +60,8 @@ class Reward(Prompt):
         user_prompt = PROMPT_FN["P_U_QWEN_JSON"].format(document=data["doctext"])
         prompt.append({'role': 'user', 'content': user_prompt})
         prompt.append({'role': 'assistant', 'content': template})
-        prompt_token_ids = self.tokenizer.apply_chat_template(prompt, add_generation_prompt=True, tokenize=True, max_length=20000, return_tensors="pt").to("cuda")
+        #prompt_token_ids = self.tokenizer.apply_chat_template(prompt, add_generation_prompt=True, tokenize=True, max_length=20000, return_tensors="pt").to("cuda")
+        prompt_token_ids = self.tokenizer.apply_chat_template(prompt, tokenize=True)
         return prompt_token_ids
 
 
