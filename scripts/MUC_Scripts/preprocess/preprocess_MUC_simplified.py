@@ -4,9 +4,26 @@ import sys
 sys.path.append("class_data")
 from MUC_Class_simplified import *
 
+def delete_correferences(templates):
+    new_templates = []
+    for template in templates:
+        new_template = {}
+        for key in template.keys():
+            if key=="incident_type":
+                new_template[key] = template[key]
+            elif template[key]==[]:
+                new_template[key] = template[key]
+            else:
+                new_template[key] = []
+                for element in template[key]:
+                    new_template[key].append([element[0][0]])
+        new_templates.append(new_template)
+    return new_templates
+
+
 file_paths = []
 output_file_paths = []
-languages = ["en","ar", "fa", "ko", "ru", "zh"]
+languages = ["en", "ar", "fa", "ko", "ru", "zh"]
 map_field = {"PerpInd": "A person responsible for the incident. (PerpInd)", "PerpOrg": "An organization responsible for the incident. (PerpOrg)", "Target": "An inanimate object that was attacked. (Target)", "Victim": "The name of a person who was the obvious or apparent target of the attack or who became a victim of the attack. (Victim)", "Weapon": "A device used by the perpetrator(s) in carrying out the terrorist act. (Weapon)"}
 for split in ["test"]:
     for language in languages:
@@ -27,7 +44,7 @@ for i in range(len(file_paths)):
             new_templates = []
             new_templates_raw = []
             incident_types = []
-            reasoning = "**Step 1: Identify the incident types:**\n\n"
+            new_template = delete_correferences(data["templates"])
             for template in data["templates"]:
                 if max < len(template):
                     max = len(template)

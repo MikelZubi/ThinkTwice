@@ -13,6 +13,24 @@ from utils import maxCommStr
 from tqdm import tqdm
 
 
+def simplify_template(templates):
+    new_templates = []
+    for template in templates:
+        new_template = {}
+        for key in template.keys():
+            if key=="incident_type":
+                new_template[key] = template[key]
+            elif template[key]==[]:
+                new_template[key] = template[key]
+            else:
+                new_template[key] = []
+                for element in template[key]:
+                    new_template[key].append(element[0])
+        new_templates.append(new_template)
+    return json.dumps(new_templates, ensure_ascii=False)
+
+def remove_errors(all_templates):
+    return [template  if ["ERROR"]  != template and [["ERROR"]] != template and "ERROR" not in template else [] for template in all_templates]
 
 #Argument parser
 parser = argparse.ArgumentParser(description='Arguments required to the rejection sampling')
@@ -20,9 +38,11 @@ parser.add_argument('--predict-dir', dest='predict_dir', type=str)
 parser.add_argument('--language', dest='language', type=str)
 parser.add_argument("--model-dir", dest='model_dir', type=str)
 parser.add_argument("--out-dir", dest="out_dir", type=str)
+parser.add_argument("--split", dest="split", type=str)
 
 parser.set_defaults(model_dir="/scratch/ehu_p518_1/ehu_p518_1_1/Ereduak/DeepSeek-R1-Distill-Llama-70B")
 parser.set_defaults(language="en")
+parser.set_defaults(split="test")
 
 args = parser.parse_args()
 language = args.language
@@ -58,6 +78,7 @@ pre_dicts = []
 
 #STEP 1: Created the reasoning
 inputs_all = []
+gold_inputs =  []
 templates_all = []
 score_dict_all = []
 pre_dict_all = []
@@ -65,7 +86,7 @@ with open(predict_dir, 'r') as file:
     for line in file:
         data = json.loads(line)
         pre_dict = data
-        templates = [template for template in pre_dict["pred_json"] if template != ['ERROR'] and template != [['ERROR']]]
+        templates = remove_errors(pre_dict["pred_json"])
         templates_list = []
         for template in templates:
             if template not in templates_list:
@@ -75,8 +96,12 @@ with open(predict_dir, 'r') as file:
         for template in templates_list:
             str_template = json.dumps(template, ensure_ascii=False)
             score_dict[str_template] = 0.0
-            prompt = prompt_class.generate_prompt(pre_dict, template=str_template)
+            simplified_templated = simplify_template(template)
+            prompt = prompt_class.generate_prompt(pre_dict, template=simplified_templated)
             inputs.append(prompt)
+        gold_simp = simplify_template(pre_dict["templates"])
+        prompt_gold = prompt_class.generate_prompt(pre_dict, template=gold_simp)
+        gold_inputs.append(prompt_gold)
         templates_all.append(templates_list)
         inputs_all.append(inputs)
         pre_dict_all.append(pre_dict)
@@ -85,9 +110,11 @@ with open(predict_dir, 'r') as file:
 max_last = 0
 new_pred_dict_all = []
 with torch.no_grad():
-    for templates, inputs, pre_dict, score_dict in tqdm(zip(templates_all, inputs_all, pre_dict_all, score_dict_all), total=len(inputs_all)):
+    for templates, inputs, pre_dict, score_dict, gold_input in tqdm(zip(templates_all, inputs_all, pre_dict_all, score_dict_all, gold_inputs), total=len(inputs_all)):
         best_template = []
         max_log = float("-inf")
+        logits_gold = model(gold_input).logits
+        logits_item_gold = logits_gold.item()
         for inp, temp in zip(inputs, templates):
             logits = model(inp).logits
             logits_item = logits.item()
@@ -101,7 +128,8 @@ with torch.no_grad():
             "doctext": pre_dict["doctext"],
             "templates": pre_dict["templates"],
             "pred_json": best_template,
-            "score_dict": score_dict
+            "score_dict": score_dict,
+            "score_gold": logits_item_gold
         }
         new_pred_dict_all.append(new_pre_dict)
 

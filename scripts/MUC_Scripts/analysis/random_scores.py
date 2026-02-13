@@ -1,16 +1,16 @@
 import sys
-sys.path.append('multimuc/iterx/src')
+sys.path.append('iterx')
 from typing import OrderedDict, List, Union, Tuple, Optional, Callable, Dict
 
-from iterx.metrics.muc.ceaf_rme import generate_scoring_structures, IterXTemplate, SCORER_CONSTRUCTOR
-from iterx.metrics.muc.ceaf_rme import ScoreFunction
+from metrics.muc.ceaf_rme import generate_scoring_structures, IterXTemplate, SCORER_CONSTRUCTOR 
+from metrics.muc.ceaf_rme import ScoreFunction
 
 from pathlib import Path
 from typing import Annotated
 import typer
-from iterx.metrics.ceaf_rme_cmd_utils import DatasetKind, PredictionFileType, load_predictions, load_metric, \
+from metrics.ceaf_rme_cmd_utils import DatasetKind, PredictionFileType, load_predictions, load_metric, \
     load_references, print_prediction_comparison
-from iterx.metrics.muc.ceaf_rme import ScoreFunction
+from metrics.muc.ceaf_rme import ScoreFunction
 import os
 import numpy as np
 import json
@@ -88,15 +88,19 @@ def remove_only_incident_temp(templates):
 def remove_errors(all_templates):
     return [template if template != ["ERROR"] and template != [['ERROR']] and "ERROR" not in template else [] for template in all_templates]
 
-def select_rd_templates(entities_path):
+def select_rd_templates(entities_path, train=False):
     entities = []
     with open(entities_path, 'r') as f:
         for line in f:
             data = json.loads(line)
             templates = data["pred_json"]
             document = data["doctext"]
-            docid = data["docid"]
-            entities.append({"docid": docid, "templates": templates, "doctext": document})
+            if train:
+                splited_ids = data["docid"].split("-")
+                corrected_id = splited_ids[1] + "-" + splited_ids[0] + "-" + splited_ids[2]
+            else:
+                corrected_id = data["docid"]
+            entities.append({"docid": corrected_id, "templates": templates, "doctext": document})
     
     #templates = list(filter(([]).__ne__, templates))
     selected_entities = []
@@ -117,12 +121,16 @@ def random_scores(entities_path,gold_path,n=100):
     with open(gold_path, "r") as file:
         for line in file:
             data = json.loads(line)
-            corrected_id = data["docid"]
+            if "train.jsonl" in gold_path:
+                splited_ids = data["docid"].split("-")
+                corrected_id = splited_ids[1] + "-" + splited_ids[0] + "-" + splited_ids[2]
+            else:
+                corrected_id = data["docid"]
             label = {"docid": corrected_id, "templates": data["templates"], "doctext": data["doctext"]}
             labels.append(label)
     all_scores = []
     for i in tqdm(range(n)):
-        selected_entities = select_rd_templates(entities_path)
+        selected_entities = select_rd_templates(entities_path, train="train.jsonl" in gold_path)
         predictions = {}
         for entity, label in zip(selected_entities, labels):
             docid = entity["docid"]

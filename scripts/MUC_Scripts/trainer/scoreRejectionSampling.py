@@ -3,7 +3,10 @@ import os
 import numpy as np
 import csv
 import argparse
-from max_scores import max_score
+import sys
+
+sys.path.append("scripts/MUC_Scripts/analysis")
+from max_score import max_score
 from random_scores import random_scores
 
 
@@ -15,36 +18,21 @@ parser.add_argument('--split', dest='split', type=str)
 parser.add_argument("--iter", dest='iter', type=str)
 parser.add_argument("--noReasoning", dest='no_reasoning', action='store_true',)
 parser.add_argument("--modelname", dest='modelname', type=str)
+parser.add_argument("--starting-path", dest='starting_path', type=str)
 parser.set_defaults(split="dev")
 parser.set_defaults(iter=1)
 parser.set_defaults(no_reasoning=False)
 parser.set_defaults(modelname="QWEN")
+parser.set_defaults(starting_path="")
 args = parser.parse_args()
 split = args.split
 iteration = args.iter
 modelname = args.modelname
+starting_path = args.starting_path
 
 
 #READ GOLD
 gold_path = "multimuc/data/multimuc_v1.0/corrected/en/"+split+".jsonl"#IDATZI
-ground_truths = []
-ids = []
-documents = []
-labels = []
-with open(gold_path, "r") as file:
-    for line in file:
-        data = json.loads(line)
-        ground_truths.append(data["templates"])
-        if split == "dev":
-            ids.append(data["docid"])
-            corrected_id = data["docid"]
-        else:
-            splited_ids = data["docid"].split("-")
-            corrected_id = splited_ids[1] + "-" + splited_ids[0] + "-" + splited_ids[2]
-            ids.append(corrected_id)
-        documents.append(data["doctext"])
-        label = {"docid": corrected_id, "templates": data["templates"]}
-        labels.append(label)
 
 completions = []
 #paths = {"Reasoning": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_Reasoning_"+str(x)+".jsonl", "StepReasoning": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_StepReasoning_"+str(x)+".jsonl", "JSON": lambda x: "multimuc/data/multimuc_v1.0/corrected/en/rejectionSampling/dev_JSON_"+str(x)+".jsonl"}
@@ -52,7 +40,7 @@ completions = []
 paths = {}
 #Iterate files in rejectionSampling/dev
 #for file in os.listdir("rejectionSampling/"+split):
-tag = "rejectionSampling/"+modelname + "/" if not args.no_reasoning else "NoReasoning/"+modelname + "/"
+tag = starting_path + "/" + ( "rejectionSampling/"+modelname + "/" if not args.no_reasoning else "NoReasoning/"+modelname + "/")
 for file in os.listdir(tag+split+"/"+iteration+"/"):
     if file.endswith("_64.jsonl"):
         #Extract the type and n from the filename
@@ -76,10 +64,10 @@ for key in paths:
         dis = 0
         best_templates = {}
         print("Processing:",path)
-        max_sc = max_score(path, gold_path)
+        max_sc = max_score(path, gold_path) * 100
         random_sc_list = random_scores(path, gold_path, n=100)
-        random_mean = np.mean(random_sc_list)
-        random_std = np.std(random_sc_list)
+        random_mean = np.mean(random_sc_list) * 100
+        random_std = np.std(random_sc_list) * 100 
         out_list.append([key,n,max_sc,random_std,random_mean])
 
 out_path = tag+split+"/scores_iter"+str(iteration)+".csv"

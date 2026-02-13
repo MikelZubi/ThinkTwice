@@ -10,7 +10,7 @@
 #SBATCH --mem=64GB
 #SBATCH --gres=gpu:1
 #SBATCH --constraint=a100-sxm4
-#SBATCH --time=24:00:00
+#SBATCH --time=03-00:00:00
 #SBATCH --output=./SLURM/inference-MUC-reward-%a.log
 #SBATCH --error=./SLURM/inference-MUC-reward-%a.err
 #SBATCH --array=0-5%4
