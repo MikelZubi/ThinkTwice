@@ -11,23 +11,27 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 
-def read_max_f1(csv_path: Path) -> float | None:
+def read_max_f1(csv_path: Path):
     try:
         with csv_path.open("r", encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
             max_f1 =  0.0
             selected_mean = None
-            selected_std = None
+            selected_p25 = None
+            selected_p975 = None
             for row in reader:
                 raw = row.get("MAX")
+                if raw is None: continue
                 val_max = float(raw)
                 val_mean = float(row.get("Mean", 0.0))
-                val_std  = float(row.get("STD", 0.0))
+                val_p25  = float(row.get("Percentile_2.5", 0.0))
+                val_p975 = float(row.get("Percentile_97.5", 0.0))
                 if val_max > max_f1:
                     max_f1 = val_max
                     selected_mean = val_mean
-                    selected_std = val_std
-            return max_f1, selected_mean, selected_std
+                    selected_p25 = val_p25
+                    selected_p975 = val_p975
+            return max_f1, selected_mean, selected_p25, selected_p975
     except FileNotFoundError:
         print(f"ADVERTENCIA: No existe {csv_path!s}. Se omite.", file=sys.stderr)
         return None
@@ -64,7 +68,7 @@ def main() -> None:
 
 
     xs_train = []
-    ys_max, ys_mean, ys_std = [], [], []
+    ys_max, ys_mean, ys_p25, ys_p975 = [], [], [], []
     max_n = 0
     for f in Path(train_dir).glob("scores_iter*.csv"):
         n = int(f.stem.replace("scores_iter", ""))
@@ -73,11 +77,12 @@ def main() -> None:
         csv_train = Path(train_dir) / f"scores_iter{n}.csv"
         result = read_max_f1(csv_train)
         if result is not None:
-            max_f1, mean_f1, std_f1 = result
+            max_f1, mean_f1, p25_f1, p975_f1 = result
             xs_train.append(n)
             ys_max.append(max_f1)
             ys_mean.append(mean_f1)
-            ys_std.append(std_f1)
+            ys_p25.append(p25_f1)
+            ys_p975.append(p975_f1)
 
     if not xs_train:
         print("ERROR: No se encontraron datos para graficar.", file=sys.stderr)
@@ -105,9 +110,9 @@ def main() -> None:
     plt.plot(xs_train, ys_mean, marker="s", linewidth=2, color="#2ca02c", label="Mean F1")
     plt.fill_between(
         xs_train,
-        [m - s*2 for m, s in zip(ys_mean, ys_std)],
-        [m + s*2 for m, s in zip(ys_mean, ys_std)],
-        alpha=0.2, color="#2ca02c", label="± 2*STD")
+        ys_p25,
+        ys_p975,
+        alpha=0.2, color="#2ca02c", label="95% CI")
     #plt.title("F1 per iteration (Train)")
     plt.ylabel("F1")
     plt.ylim(15.0,80.0)

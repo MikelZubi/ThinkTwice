@@ -20,6 +20,26 @@ better_df = better_df[cols]
 # Concatenate both dataframes
 combined_df = pd.concat([muc_df, better_df], ignore_index=True)
 
+# Split mean_std columns into mean and std
+cols_to_split = ['voter_majority_mean_std', 'voter_f1_mean_std', 'reward_mean_std']
+for col in cols_to_split:
+    if col in combined_df.columns:
+        base_name = col.replace('_mean_std', '')
+        mean_col = f"{base_name}_mean"
+        std_col = f"{base_name}_std"
+        
+        split_data = combined_df[col].astype(str).str.split('±', expand=True)
+        # Convert 'nan' string back to actual NaN
+        combined_df[mean_col] = pd.to_numeric(split_data[0], errors='coerce')
+        
+        if split_data.shape[1] > 1:
+            combined_df[std_col] = pd.to_numeric(split_data[1], errors='coerce')
+        else:
+            combined_df[std_col] = pd.NA
+            
+        # Drop the original column
+        combined_df = combined_df.drop(columns=[col])
+
 # Ensure the output directory exists
 os.makedirs('results', exist_ok=True)
 

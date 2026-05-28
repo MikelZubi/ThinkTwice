@@ -20,6 +20,7 @@ def obtain_randoms_per_entry(entries_path):
     for entry in entries_data:
 
         #CLEAN TEMPLATES
+        entry["templates"] = entry["pred_json"]
         no_error_templates = remove_errors(entry['templates'])
         if no_error_templates == []:
             selected_template = ["ERROR"]
@@ -30,7 +31,7 @@ def obtain_randoms_per_entry(entries_path):
 
 
 def random_scores(entries_path, gold_path, n=100):
-    rd.seed(42)
+    rd.seed(16)
     true_data = BPDocument.from_json(gold_path)
     with open(entries_path, 'r') as f:
         entries_data = []

@@ -51,7 +51,7 @@ for file in os.listdir(tag+split+"/"+iteration+"/"):
 
 
 
-header = ["Type","n","MAX","STD","Mean"]
+header = ["Type","n","MAX","STD","Mean", "Percentile_2.5", "Percentile_97.5"]
 out_list = []
 ns = [64]
 stds = []
@@ -68,7 +68,9 @@ for key in paths:
         random_sc_list = random_scores(path, gold_path, n=100)
         random_mean = np.mean(random_sc_list) * 100
         random_std = np.std(random_sc_list) * 100 
-        out_list.append([key,n,max_sc,random_std,random_mean])
+        random_p25 = np.percentile(random_sc_list, 2.5) * 100
+        random_p975 = np.percentile(random_sc_list, 97.5) * 100
+        out_list.append([key,n,max_sc,random_std,random_mean,random_p25,random_p975])
 
 out_path = tag+split+"/scores_iter"+str(iteration)+".csv"
 #out_path = "rejectionSampling/"+split+"/scores.csv"

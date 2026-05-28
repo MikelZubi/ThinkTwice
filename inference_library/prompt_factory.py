@@ -9,7 +9,7 @@ from init import PROMPT_FN
 
 
 class Prompt(ABC):
-    def __init__(self, model_name, language, dataset_name, think):
+    def __init__(self, model_name, language, dataset_name, think, tokenize=True):
         self.language = language
         if dataset_name == "BETTER":
             self.dataset_guidelines = PROMPT_FN["BETTER_GUIDELINES"]
@@ -17,7 +17,9 @@ class Prompt(ABC):
             self.dataset_guidelines = PROMPT_FN["MUC_GUIDELINES"]
         self.dataset = dataset_name
         self.think = think
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        if "gpt-5" not in model_name.lower():
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            self.tokenize = tokenize
 
     @abstractmethod
     def generate_prompt(self):
@@ -30,7 +32,9 @@ class LlamaR1Prompt(Prompt):
         prompt = []
         user_prompt = PROMPT_FN["P_U_70BR1_REASONING"].format(language=self.language, guidelines=self.dataset_guidelines, document=data["doctext"])
         prompt.append({'role': 'user', 'content': user_prompt})
-        prompt_token_ids = self.tokenizer.apply_chat_template(prompt, add_generation_prompt=True, tokenize=True) + self.tokenizer.encode("<think>\n")
+        prompt_token_ids = self.tokenizer.apply_chat_template(prompt, add_generation_prompt=True, tokenize=self.tokenize)
+        if self.tokenize:
+            prompt_token_ids = prompt_token_ids + self.tokenizer.encode("<think>\n")
         return prompt_token_ids
 
 class Llama3_3Prompt(Prompt):
@@ -40,7 +44,7 @@ class Llama3_3Prompt(Prompt):
         prompt.append({'role': 'system', 'content': system_prompt})
         user_prompt = PROMPT_FN["P_U_LLAMA_JSON"].format(document=data["doctext"])
         prompt.append({'role': 'user', 'content': user_prompt})
-        prompt_token_ids = self.tokenizer.apply_chat_template(prompt, add_generation_prompt=True, tokenize=True)
+        prompt_token_ids = self.tokenizer.apply_chat_template(prompt, add_generation_prompt=True, tokenize=self.tokenize)
         return prompt_token_ids
 
 class Qwen3Prompt(Prompt):
@@ -50,7 +54,7 @@ class Qwen3Prompt(Prompt):
         prompt.append({'role': 'system', 'content': system_prompt})
         user_prompt = PROMPT_FN["P_U_QWEN_JSON"].format(document=data["doctext"])
         prompt.append({'role': 'user', 'content': user_prompt})
-        prompt_token_ids = self.tokenizer.apply_chat_template(prompt, add_generation_prompt=True, enable_thinking=self.think, tokenize=True)
+        prompt_token_ids = self.tokenizer.apply_chat_template(prompt, add_generation_prompt=True, enable_thinking=self.think, tokenize=self.tokenize)
         return prompt_token_ids
 class Reward(Prompt):
     def generate_prompt(self,data,template=[]):
@@ -61,16 +65,26 @@ class Reward(Prompt):
         prompt.append({'role': 'user', 'content': user_prompt})
         prompt.append({'role': 'assistant', 'content': template})
         #prompt_token_ids = self.tokenizer.apply_chat_template(prompt, add_generation_prompt=True, tokenize=True, max_length=20000, return_tensors="pt").to("cuda")
-        prompt_token_ids = self.tokenizer.apply_chat_template(prompt, tokenize=True)
+        prompt_token_ids = self.tokenizer.apply_chat_template(prompt, tokenize=self.tokenize)
         return prompt_token_ids
 
+class ChatGPT(Prompt):
+    def generate_prompt(self,data):
+        prompt = []
+        system_prompt = PROMPT_FN["P_S_QWEN_JSON"].format(language=self.language, guidelines=self.dataset_guidelines)
+        prompt.append({'role': 'developer', 'content': system_prompt})
+        user_prompt = PROMPT_FN["P_U_QWEN_JSON"].format(document=data["doctext"])
+        prompt.append({'role': 'user', 'content': user_prompt})
+        return prompt
 
-def prompt_factory(model_name, language, dataset_name, think):
+def prompt_factory(model_name, language, dataset_name, think, tokenize=True):
     if "R1" in model_name:
-        return LlamaR1Prompt(model_name, language, dataset_name, think)
+        return LlamaR1Prompt(model_name, language, dataset_name, think, tokenize=tokenize)
     elif "Qwen3" in model_name:
-        return Qwen3Prompt(model_name, language, dataset_name, think)
+        return Qwen3Prompt(model_name, language, dataset_name, think, tokenize=tokenize)
     elif "Reward" in model_name:
-        return Reward(model_name, language, dataset_name, think)
+        return Reward(model_name, language, dataset_name, think, tokenize=tokenize)
+    elif "gpt" in model_name.lower():
+        return ChatGPT(model_name, language, dataset_name, think, tokenize=tokenize)
     else:
-        return Llama3_3Prompt(model_name, language, dataset_name, think)
+        return Llama3_3Prompt(model_name, language, dataset_name, think, tokenize=tokenize)

@@ -186,7 +186,7 @@ for idx_n, outputs in enumerate(result_2):
     post_templates = []
     lower_doc = pre_dicts[idx]["doctext"].lower()
     try:
-        post_templates = json.loads(outputs.outputs[0].text)["pred_json"]
+        post_templates = json.loads(outputs.outputs[0].text)["templates"]
     except json.decoder.JSONDecodeError:
         print(outputs.outputs[0].text)
         post_templates = ["ERROR"]

@@ -10,13 +10,13 @@ from tqdm import tqdm
 def remove_errors(all_templates):
     return [template for template in all_templates if ["ERROR"]  != template and [["ERROR"]] != template and "ERROR" not in template]
 
-def measure_precision(str_template):
+def measure_precision(templates):
     error_measure = 1.0
-    for template in str_template:
+    for template in templates:
         for key in template.keys():
             if key != "incident_type":
                 error_measure -= len(template[key]) * 0.025
-    return error_measure
+    return max(error_measure, 0.0)
 
 
 def calculate_correlations(reward_path,sampling_path,test_path,remove_repeated=False):
@@ -31,6 +31,8 @@ def calculate_correlations(reward_path,sampling_path,test_path,remove_repeated=F
         docid = reward_item["docid"]
         score_dict = reward_item["score_dict"]
         gold = test_item["templates"]
+        simp_gold = sampling_item["templates"]
+        simp_gold_score = reward_item["score_gold"]
         sampling_templates = sampling_item["pred_json"]
         sampling_templates = remove_errors(sampling_templates)
         if remove_repeated:
@@ -49,6 +51,13 @@ def calculate_correlations(reward_path,sampling_path,test_path,remove_repeated=F
             else:
                 real_score = line_scorer(template, gold)["iterx_muc_slot_f1"]
             predict_scores.append(predict_score)
+            real_scores.append(real_score)
+        if not remove_repeated or simp_gold not in sampling_templates:
+            if gold == []:
+                real_score = 1.0
+            else: 
+                real_score = line_scorer(simp_gold, gold)["iterx_muc_slot_f1"]
+            predict_scores.append(simp_gold_score)
             real_scores.append(real_score)
         correlation, p_value = spearmanr(predict_scores, real_scores)
         output = {

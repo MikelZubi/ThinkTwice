@@ -29,6 +29,8 @@ def obtain_best_per_entry(entries_path, gold_path):
         "format-version": gold_data["format-version"]})
 
         #CLEAN TEMPLATES
+        entry["templates"] = entry["pred_json"]
+
         no_error_templates = remove_errors(entry['templates'])
         post_templates = []
         if no_error_templates == []:

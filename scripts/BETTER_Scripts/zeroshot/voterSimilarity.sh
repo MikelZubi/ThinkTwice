@@ -1,5 +1,6 @@
 SPLIT="test"
-MODELNAMES=("Llama3.3-70B" "LlamaR1-70B" "Qwen3-32B_nothink" "Qwen3-32B_think")
+#MODELNAMES=("Llama3.3-70B" "LlamaR1-70B" "Qwen3-32B_nothink" "Qwen3-32B_think", "gpt-5.5_think")
+MODELNAMES=("gpt-5.5_think")
 for MODELNAME in "${MODELNAMES[@]}"; do
     echo "Processing model: ${MODELNAME}"
     READ_FILE="results/BETTER/zeroshot/${SPLIT}/en_string/${MODELNAME}_64.jsonl"
